@@ -24,7 +24,13 @@ export class TrainQueryUtils {
 
 
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'cookie': '_jc_save_fromStation=%u5317%u4EAC%2CBJP;'
+                },
+            });
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
