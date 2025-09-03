@@ -40,14 +40,14 @@ async function createSingleDayData(trainDay: string): Promise<void> {
         const fromStationCode = 'ZQA'; // 固定值 肇庆
         const toStationCode = 'PYA';   // 固定值 番禺
 
-        const apiData = await FetchAllTrainDataUtils.fetchTrainDetails([{
+        const trainDetailStr = await FetchAllTrainDataUtils.fetchTrainDetails([{
             trainDay: trainDay,
             fromStationCode: fromStationCode,
             toStationCode: toStationCode
         }], trainDay);
 
         // 写入文件
-        fs.writeFileSync(filePath, JSON.stringify(apiData, null, 2));
+        fs.writeFileSync(filePath, trainDetailStr);
         console.log(`Created/Updated file: ${filePath}`);
     } catch (error) {
         console.error(`Error creating data for ${trainDay}:`, error);

@@ -7,17 +7,7 @@ export interface StopTime {
     arriveTime: string; // 到达时间，4位数时分，1420，（表示14点20分）
     trainDate: string; // 发车日期，年月日，不带连接符，如20220201
     startTime: string; // 发车时间，4位数时分，1420，（表示14点20分）
-    startTrainDate: string; // 始发日期。 trainDate 是车站发车日期，可能和始发日期不是同一天
     stationTrainCode: string; // 停靠车站的车次号
-    stationNo: string; // 车站序号，这趟列车的第几个车站
-    stationTelecode: string; // 车站code（针对车趟车的）
-    lat: string; // 车站纬度
-    lon: string; // 车站精度
-
-    // 始发站
-    start_station_name: string;
-    start_station_telecode: string;
-    startTrainCode: string;
 }
 
 // 列车详情接口
@@ -56,12 +46,11 @@ export class TrainDetailUtils {
 
         // 打印原始响应文本
         const responseText = await response.text();
-        console.debug('原始接口返回:', responseText);
-
         try {
             return JSON.parse(responseText);
         } catch (e) {
             console.error('JSON解析失败:', e);
+            console.debug('原始接口返回:', responseText);
         }
 
         return {};
@@ -91,17 +80,7 @@ export class TrainDetailUtils {
                     arriveTime: stopTime.arriveTime || '',
                     trainDate: stopTime.trainDate || '',
                     startTime: stopTime.startTime || '',
-                    startTrainDate: stopTime.startTrainDate || '',
                     stationTrainCode: stopTime.stationTrainCode || '',
-                    stationNo: stopTime.stationNo || '',
-                    stationTelecode: stopTime.stationTelecode || '',
-                    lat: stopTime.lat || '',
-                    lon: stopTime.lon || '',
-
-                    // 始发站
-                    start_station_name: stopTime.start_station_name?.replace(/\s+/g, '') || '',
-                    start_station_telecode: stopTime.start_station_telecode || '',
-                    startTrainCode: stopTime.startTrainCode || '',
 
                 } as StopTime
             }

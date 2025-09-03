@@ -37,12 +37,12 @@ export class TrainQueryUtils {
 
             // 打印原始响应文本
             const responseText = await response.text();
-            console.debug('原始接口返回:', responseText);
 
             try {
                 return JSON.parse(responseText);
             } catch (e) {
                 console.error('JSON解析失败:', e);
+                console.debug('原始接口返回:', responseText);
             }
         } catch (error) {
             console.error('Error fetching train data:', error);
