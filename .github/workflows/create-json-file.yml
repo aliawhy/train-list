@@ -26,3 +26,11 @@ jobs:
       
     - name: Run test script
       run: npx tsx scripts/process.ts
+      
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add data/
+        git commit -m "Add JSON file for $(date -u +%Y%m%d)" || exit 0
+        git push
