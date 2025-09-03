@@ -1,35 +1,28 @@
-name: Create Date-based JSON File
+name: Daily Test Runner
 
 on:
-  workflow_dispatch: # 允许手动触发
   schedule:
-    # 每天北京时间0点执行（UTC是前一天的16点）
-    - cron: '0 16 * * *'
+    # 每天0点UTC运行（北京时间早上8点）
+    - cron: '0 0 * * *'
+  # 允许手动触发
+  workflow_dispatch:
 
 jobs:
-  create-file:
+  run-test:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
-        node-version: '16'
-        
+        node-version: '18'
+        cache: 'npm'
+      
     - name: Install dependencies
-      run: npm install typescript @types/node ts-node
+      run: npm ci
       
-    - name: Run script to create JSON file
-      id: create-file
-      run: npx ts-node scripts/process.ts
-      
-    - name: Commit and push changes
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add data/
-        git commit -m "Add JSON file for $(date -u +%Y%m%d)" || exit 0
-        git push
+    - name: Run test script
+      run: npx tsx script/test.ts
