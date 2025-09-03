@@ -59,7 +59,8 @@ async function createSingleDayData(trainDay: string): Promise<void> {
 async function initializeData(today: string): Promise<void> {
     console.log('执行初始化策略：创建1-15天的数据');
 
-    for (let i = 0; i < 15; i++) {
+    const maxInitDay = 1; // 调试时可改为1
+    for (let i = 0; i < maxInitDay; i++) {
         const targetDate = getDateAfterDays(today, i);
         try {
             await createSingleDayData(targetDate);
@@ -91,7 +92,8 @@ async function incrementalUpdate(today: string): Promise<void> {
 // 检查是否需要初始化
 async function checkInitializationNeeded(today: string): Promise<boolean> {
     // 检查1-14天的文件是否存在（第15天的数据是最新数据 会每天都刷新）
-    for (let i = 0; i < 14; i++) {
+    const maxCheckDay = 14
+    for (let i = 0; i < maxCheckDay; i++) {
         const targetDate = getDateAfterDays(today, i);
         const filePath = path.join(__dirname, '..', 'data', 'GDCJ', `GDCJ-${targetDate}.json`);
 

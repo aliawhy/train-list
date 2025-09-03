@@ -54,7 +54,17 @@ export class TrainDetailUtils {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        return await response.json();
+        // 打印原始响应文本
+        const responseText = await response.text();
+        console.debug('原始接口返回:', responseText);
+
+        try {
+            return JSON.parse(responseText);
+        } catch (e) {
+            console.error('JSON解析失败:', e);
+        }
+
+        return {};
     }
 
     /**
@@ -67,7 +77,7 @@ export class TrainDetailUtils {
             startDay = startDay.replace(/-/g, ''); // 转换为需要的格式
 
             const data = await TrainDetailUtils.fetchTrainData(trainCode, startDay);
-            const result: TrainDetail = data?.data.trainDetail || {} as TrainDetail;
+            const result: TrainDetail = data?.data?.trainDetail || {} as TrainDetail;
             result.stopTime = result.stopTime || [];
 
             for (let i = 0; i < result.stopTime.length; i++) {

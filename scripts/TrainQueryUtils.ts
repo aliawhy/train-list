@@ -28,12 +28,22 @@ export class TrainQueryUtils {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            const data = await response.json();
-            return data;
+
+            // 打印原始响应文本
+            const responseText = await response.text();
+            console.debug('原始接口返回:', responseText);
+
+            try {
+                return JSON.parse(responseText);
+            } catch (e) {
+                console.error('JSON解析失败:', e);
+            }
         } catch (error) {
             console.error('Error fetching train data:', error);
             throw error;
         }
+
+        return {}
     }
 
     static async queryTrainInfo(
@@ -48,7 +58,6 @@ export class TrainQueryUtils {
             const res = await this.fetchTrainData(trainDay, fromStationCode, toStationCode);
             const tmpResults = res.data?.result || [];
 
-            console.debug('api查询原生结果', tmpResults);
             const trainInfoList: TrainInfo[] = [];
 
             for (let i = 0; i < tmpResults.length; i++) {
