@@ -32,6 +32,9 @@ jobs:
       run: npm ci
       
     - name: Run test script
+      env:
+        API_T: ${{ secrets.API_T }}
+        API_D: ${{ secrets.API_D }}
       run: npx tsx scripts/process.ts
       
     - name: Commit and push changes
@@ -47,4 +50,3 @@ jobs:
           git commit -m "Update data directory for $(date -u +%Y%m%d)"
           git push
         fi
-
