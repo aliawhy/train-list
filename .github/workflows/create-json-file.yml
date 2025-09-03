@@ -3,7 +3,7 @@ name: Daily Test Runner
 on:
   schedule:
     # 每天16点15分UTC运行（北京时间0点15分）
-    - cron: '15 16 * * *'
+    # - cron: '15 16 * * *'  #暂时停止此任务
   # 允许手动触发
   workflow_dispatch:
 
@@ -21,22 +21,22 @@ jobs:
       with:
         # 添加token以允许推送更改
         token: ${{ secrets.GITHUB_TOKEN }}
-      
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
         cache: 'npm'
-      
+
     - name: Install dependencies
       run: npm ci
-      
+
     - name: Run test script
       env:
         API_T: ${{ secrets.API_T }}
         API_D: ${{ secrets.API_D }}
       run: npx tsx scripts/process.ts
-      
+
     - name: Commit and push changes
       run: |
         git config --local user.email "action@github.com"
