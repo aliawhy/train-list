@@ -42,9 +42,4 @@ function createJsonFile() {
   return { date, filePath };
 }
 
-// 如果直接运行此脚本
-if (require.main === module) {
-  createJsonFile();
-}
-
-export { createJsonFile, getBeijingTime };
+createJsonFile();
