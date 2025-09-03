@@ -39,9 +39,8 @@ async function createJsonFile() {
         const trainDay = '2025-09-03'; // 示例值
         const fromStationCode = 'BJP'; // 北京站代码，示例值
         const toStationCode = 'SHH';   // 上海站代码，示例值
-        const apiData = await TrainQueryUtils.queryTrainInfo(trainDay, fromStationCode, toStationCode)
 
-        FetchAllTrainDataUtils.fetchTrainDetails([{
+        const apiData = await FetchAllTrainDataUtils.fetchTrainDetails([{
             trainDay: trainDay,
             fromStationCode: fromStationCode,
             toStationCode: toStationCode
