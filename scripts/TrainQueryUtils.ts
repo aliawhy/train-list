@@ -20,7 +20,7 @@ export class TrainQueryUtils {
         }
 
         const url = `${baseUrl}?leftTicketDTO.train_date=${trainDay}&leftTicketDTO.from_station=${fromStationCode}&leftTicketDTO.to_station=${toStationCode}&purpose_codes=ADULT`;
-        console.log(`Fetching train data in ${trainDay} from ${fromStationCode} to ${toStationCode}`);
+        console.debug(`Fetching train data in ${trainDay} from ${fromStationCode} to ${toStationCode}`);
 
 
         try {

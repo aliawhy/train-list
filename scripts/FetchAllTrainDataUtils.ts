@@ -17,7 +17,7 @@ export class FetchAllTrainDataUtils {
         queries: TrainQueryParam[]
     ): Promise<string[]> {
         const uniqueTrainSet = new Set<string>();
-        const result: string[] = [];
+        const trainNumbers: string[] = [];
 
         for (const query of queries) {
             try {
@@ -39,7 +39,7 @@ export class FetchAllTrainDataUtils {
                     // 使用出发车次编码originTrainCode作为去重依据，因为列车在中途可能会改变车次号，只要记录一个即可
                     if (!uniqueTrainSet.has(train.originTrainCode)) {
                         uniqueTrainSet.add(train.originTrainCode);
-                        result.push(train.trainNumber);
+                        trainNumbers.push(train.trainNumber);
                     }
                 }
             } catch (error) {
@@ -47,9 +47,8 @@ export class FetchAllTrainDataUtils {
             }
         }
 
-        console.debug('trainNumbers')
-        console.debug(result)
-        return result;
+        console.debug(`车次数量 ${trainNumbers.length}`)
+        return trainNumbers;
     }
 
     /**
@@ -75,17 +74,16 @@ export class FetchAllTrainDataUtils {
                 // 将结果存入Map
                 trainDetails.push(trainDetail);
 
-                cnt++
-                if (cnt > 3) {
-                    break; // 调试使用，避免需要查很久
-                }
+                // cnt++
+                // if (cnt > 3) {
+                //     break; // 调试使用，避免需要查很久，请保留
+                // }
             } catch (error) {
                 console.error(`查询车次详情失败: ${trainNumber}${queryDay}`, error);
             }
         }
 
-        console.debug('trainDetails')
-        console.debug(trainDetails)
+        console.debug(`车次数量 ${trainNumbers.length}, 详情数量${trainDetails.length}`)
         return trainDetails;
     }
 

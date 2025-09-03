@@ -37,14 +37,29 @@ async function createSingleDayData(trainDay: string): Promise<void> {
     const filePath = path.join(dirPath, `GDCJ-${trainDay}.json`);
 
     try {
-        const fromStationCode = 'ZQA'; // 固定值 肇庆
-        const toStationCode = 'PYA';   // 固定值 番禺
+        const zq = 'ZQA'; // 固定值 肇庆
+        const fsx = 'FXA'; // 固定值 佛山西
+        const py = 'PYA'; // 固定值 番禺
+        const gzlhs = 'GLA'; // 固定值 广州莲花山
+        const dgx = 'DXA'; // 固定值 东莞西，后续可能会用到
+        const xpx = 'EGQ'; // 固定值 西平西，后续可能会用
+        const hd = 'HAA'; // 花都
+        const qc = 'QCA'; // 清城
+        const byjcb = 'BBA'; // 白云机场北
 
-        const trainDetailStr = await FetchAllTrainDataUtils.fetchTrainDetails([{
-            trainDay: trainDay,
-            fromStationCode: fromStationCode,
-            toStationCode: toStationCode
-        }], trainDay);
+        // 构造所有站点对的数组
+        const stationPairs = [
+            {trainDay: trainDay, fromStationCode: fsx, toStationCode: zq},    // [佛山西、肇庆]
+            {trainDay: trainDay, fromStationCode: fsx, toStationCode: py},    // [佛山西、番禺]
+            {trainDay: trainDay, fromStationCode: py, toStationCode: fsx},    // [番禺、佛山西]
+            {trainDay: trainDay, fromStationCode: py, toStationCode: gzlhs},  // [番禺、广州莲花山]
+            {trainDay: trainDay, fromStationCode: hd, toStationCode: qc},     // [花都、清城]
+            {trainDay: trainDay, fromStationCode: qc, toStationCode: hd},     // [清城、花都]
+            {trainDay: trainDay, fromStationCode: hd, toStationCode: byjcb},  // [花都、白云机场北]
+            {trainDay: trainDay, fromStationCode: byjcb, toStationCode: hd},  // [白云机场北、花都]
+        ];
+
+        const trainDetailStr = await FetchAllTrainDataUtils.fetchTrainDetails(stationPairs, trainDay);
 
         // 写入文件
         fs.writeFileSync(filePath, trainDetailStr);
@@ -59,7 +74,7 @@ async function createSingleDayData(trainDay: string): Promise<void> {
 async function initializeData(today: string): Promise<void> {
     console.log('执行初始化策略：创建1-15天的数据');
 
-    const maxInitDay = 1; // 调试时可改为1
+    const maxInitDay = 15; // 值为15，调试时可改为1
     for (let i = 0; i < maxInitDay; i++) {
         const targetDate = getDateAfterDays(today, i);
         try {

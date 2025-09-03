@@ -2,8 +2,8 @@ name: Daily Test Runner
 
 on:
   schedule:
-    # 每天0点UTC运行（北京时间早上8点）
-    - cron: '0 0 * * *'
+    # 每天16点15分UTC运行（北京时间0点15分）
+    - cron: '15 16 * * *'
   # 允许手动触发
   workflow_dispatch:
 
