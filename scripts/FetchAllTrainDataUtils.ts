@@ -89,7 +89,7 @@ export class FetchAllTrainDataUtils {
         return trainDetails;
     }
 
-    private static async fetchTrainDetails(queries: TrainQueryParam[], queryDay: string) {
+    static async fetchTrainDetails(queries: TrainQueryParam[], queryDay: string) {
         const trainNumbers = await FetchAllTrainDataUtils.batchQueryTrainNumbers(queries); // 输出的车次已经基于原始车次去重，如G1 G2同车次，输出结果只会有其中一个
         return await FetchAllTrainDataUtils.batchQueryTrainDetails(trainNumbers, queryDay);
     }

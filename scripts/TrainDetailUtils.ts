@@ -11,6 +11,8 @@ export interface StopTime {
     stationTrainCode: string; // 停靠车站的车次号
     stationNo: string; // 车站序号，这趟列车的第几个车站
     stationTelecode: string; // 车站code（针对车趟车的）
+    lat: string; // 车站纬度
+    lon: string; // 车站精度
 
     // 始发站
     start_station_name: string;
@@ -69,10 +71,29 @@ export class TrainDetailUtils {
             result.stopTime = result.stopTime || [];
 
             for (let i = 0; i < result.stopTime.length; i++) {
-                const stopTime = result.stopTime[i];
-                stopTime.stationName = stopTime.stationName.replace(/\s+/g, '');
-                stopTime.end_station_name = stopTime.end_station_name.replace(/\s+/g, '');
-                stopTime.start_station_name = stopTime.start_station_name.replace(/\s+/g, '');
+                const stopTime = result.stopTime[i] || {} as StopTime;
+
+                // 只保留 StopTime 接口中定义的字段
+                result.stopTime[i] = {
+                    // 停靠站
+                    stationName: stopTime.stationName?.replace(/\s+/g, '') || '',
+                    arraiveDate: stopTime.arraiveDate || '',
+                    arriveTime: stopTime.arriveTime || '',
+                    trainDate: stopTime.trainDate || '',
+                    startTime: stopTime.startTime || '',
+                    startTrainDate: stopTime.startTrainDate || '',
+                    stationTrainCode: stopTime.stationTrainCode || '',
+                    stationNo: stopTime.stationNo || '',
+                    stationTelecode: stopTime.stationTelecode || '',
+                    lat: stopTime.lat || '',
+                    lon: stopTime.lon || '',
+
+                    // 始发站
+                    start_station_name: stopTime.start_station_name?.replace(/\s+/g, '') || '',
+                    start_station_telecode: stopTime.start_station_telecode || '',
+                    startTrainCode: stopTime.startTrainCode || '',
+
+                } as StopTime
             }
 
             return result;
