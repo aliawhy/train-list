@@ -25,4 +25,4 @@ jobs:
       run: npm ci
       
     - name: Run test script
-      run: npx tsx script/test.ts
+      run: npx tsx script/process.ts
