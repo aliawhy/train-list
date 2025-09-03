@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import fetch from 'node-fetch';
 
 // 获取当前文件的目录路径
 const __filename = fileURLToPath(import.meta.url);
@@ -20,8 +21,37 @@ function getBeijingTime(): { date: string; time: string } {
   return { date, time };
 }
 
+// 调用12306接口
+async function fetchTrainData() {
+  const baseUrl = process.env.API_T;
+  
+  if (!baseUrl) {
+    throw new Error('API_T environment variable is not set');
+  }
+  
+  const trainDay = '2025-09-03'; // 示例值
+  const fromStationCode = 'BJP'; // 北京站代码，示例值
+  const toStationCode = 'SHH';   // 上海站代码，示例值
+  
+  const url = `${baseUrl}?leftTicketDTO.train_date=${trainDay}&leftTicketDTO.from_station=${fromStationCode}&leftTicketDTO.to_station=${toStationCode}&purpose_codes=ADULT`;
+  
+  console.log(`Fetching data from: ${url}`);
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching train data:', error);
+    throw error;
+  }
+}
+
 // 创建JSON文件
-function createJsonFile() {
+async function createJsonFile() {
   const { date, time } = getBeijingTime();
   
   // 确保目录存在
@@ -33,18 +63,20 @@ function createJsonFile() {
   // 创建文件路径
   const filePath = path.join(dirPath, `test-${time}.json`);
   
-  // JSON内容
-  const content = {
-    createdAt: time,
-    timezone: "Asia/Shanghai",
-    message: "This is a test file created by GitHub Action"
-  };
-  
-  // 写入文件
-  fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
-  console.log(`Created file: ${filePath}`);
-  
-  return { date, filePath };
+  try {
+    // 调用12306接口获取数据
+    const apiData = await fetchTrainData();
+    
+    // 写入文件
+    fs.writeFileSync(filePath, JSON.stringify(apiData, null, 2));
+    console.log(`Created file: ${filePath}`);
+    
+    return { date, filePath };
+  } catch (error) {
+    console.error('Error creating JSON file:', error);
+    throw error;
+  }
 }
 
-createJsonFile();
+// 执行主函数
+createJsonFile().catch(console.error);
