@@ -1,0 +1,64 @@
+{
+  "trainInfoList": [
+    {
+      "originTrainCode": "240000G1593L",
+      "trainNumber": "G159",
+      "departureCode": "VNP",
+      "arrivalCode": "AOH"
+    },
+    {
+      "originTrainCode": "240000G1610K",
+      "trainNumber": "G161",
+      "departureCode": "VNP",
+      "arrivalCode": "AOH"
+    },
+    {
+      "originTrainCode": "2400000G2306",
+      "trainNumber": "G23",
+      "departureCode": "VNP",
+      "arrivalCode": "SHH"
+    },
+    {
+      "originTrainCode": "2400000G2506",
+      "trainNumber": "G25",
+      "departureCode": "VNP",
+      "arrivalCode": "AOH"
+    },
+    {
+      "originTrainCode": "2400000G270J",
+      "trainNumber": "G27",
+      "departureCode": "VNP",
+      "arrivalCode": "SHH"
+    },
+    {
+      "originTrainCode": "2400000D170N",
+      "trainNumber": "D17",
+      "departureCode": "BJP",
+      "arrivalCode": "IMH"
+    },
+    {
+      "originTrainCode": "330000Z28410",
+      "trainNumber": "Z281",
+      "departureCode": "FTP",
+      "arrivalCode": "IMH"
+    },
+    {
+      "originTrainCode": "24000000D920",
+      "trainNumber": "D9",
+      "departureCode": "VNP",
+      "arrivalCode": "SNH"
+    },
+    {
+      "originTrainCode": "240000T10918",
+      "trainNumber": "T109",
+      "departureCode": "BJP",
+      "arrivalCode": "SHH"
+    },
+    {
+      "originTrainCode": "24000000D520",
+      "trainNumber": "D5",
+      "departureCode": "BJP",
+      "arrivalCode": "SHH"
+    }
+  ]
+}
