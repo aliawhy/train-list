@@ -38,6 +38,13 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        # 添加所有变化
         git add data/
-        git commit -m "Add JSON file for $(date -u +%Y%m%d)" || exit 0
-        git push
+        # 检查是否有变化
+        if git diff --staged --quiet; then
+          echo "No changes to commit."
+        else
+          git commit -m "Update data directory for $(date -u +%Y%m%d)"
+          git push
+        fi
+
