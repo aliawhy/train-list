@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
-import fetch from 'node-fetch';
+import {fileURLToPath} from 'url';
+import {TrainQueryUtils} from "./TrainQueryUtils";
 
 // 获取当前文件的目录路径
 const __filename = fileURLToPath(import.meta.url);
@@ -21,34 +21,34 @@ function getBeijingTime(): { date: string; time: string } {
   return { date, time };
 }
 
-// 调用12306接口
-async function fetchTrainData() {
-  const baseUrl = process.env.API_T;
-  
-  if (!baseUrl) {
-    throw new Error('API_T environment variable is not set');
-  }
-  
-  const trainDay = '2025-09-03'; // 示例值
-  const fromStationCode = 'BJP'; // 北京站代码，示例值
-  const toStationCode = 'SHH';   // 上海站代码，示例值
-  
-  const url = `${baseUrl}?leftTicketDTO.train_date=${trainDay}&leftTicketDTO.from_station=${fromStationCode}&leftTicketDTO.to_station=${toStationCode}&purpose_codes=ADULT`;
-  
-  console.log(`Fetching data from: ${url}`);
-  
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching train data:', error);
-    throw error;
-  }
-}
+// // 调用12306接口
+// async function fetchTrainData() {
+//   const baseUrl = process.env.API_T;
+//
+//   if (!baseUrl) {
+//     throw new Error('API_T environment variable is not set');
+//   }
+//
+//   const trainDay = '2025-09-03'; // 示例值
+//   const fromStationCode = 'BJP'; // 北京站代码，示例值
+//   const toStationCode = 'SHH';   // 上海站代码，示例值
+//
+//   const url = `${baseUrl}?leftTicketDTO.train_date=${trainDay}&leftTicketDTO.from_station=${fromStationCode}&leftTicketDTO.to_station=${toStationCode}&purpose_codes=ADULT`;
+//
+//   console.log(`Fetching data from: ${url}`);
+//
+//   try {
+//     const response = await fetch(url);
+//     if (!response.ok) {
+//       throw new Error(`HTTP error! status: ${response.status}`);
+//     }
+//     const data = await response.json();
+//     return data;
+//   } catch (error) {
+//     console.error('Error fetching train data:', error);
+//     throw error;
+//   }
+// }
 
 // 创建JSON文件
 async function createJsonFile() {
@@ -64,8 +64,10 @@ async function createJsonFile() {
   const filePath = path.join(dirPath, `test-${time}.json`);
   
   try {
-    // 调用12306接口获取数据
-    const apiData = await fetchTrainData();
+    const trainDay = '2025-09-03'; // 示例值
+    const fromStationCode = 'BJP'; // 北京站代码，示例值
+    const toStationCode = 'SHH';   // 上海站代码，示例值
+    const apiData = await TrainQueryUtils.queryTrainInfo(trainDay, fromStationCode, toStationCode)
     
     // 写入文件
     fs.writeFileSync(filePath, JSON.stringify(apiData, null, 2));
