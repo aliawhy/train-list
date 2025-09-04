@@ -3,7 +3,7 @@ name: Daily Test Runner
 on:
   schedule:
     # 每天16点15分UTC运行（北京时间0点15分）
-    # - cron: '15 16 * * *'  #暂时停止此任务
+    - cron: '15 16 * * *'
   # 允许手动触发
   workflow_dispatch:
 

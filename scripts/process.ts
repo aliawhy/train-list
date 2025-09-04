@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {fileURLToPath} from 'url';
-import {FetchAllTrainDataUtils} from "./FetchAllTrainDataUtils";
+import {FetchAllTrainDataUtils, TrainQueryParam} from "./FetchAllTrainDataUtils";
 
 // 获取当前文件的目录路径
 const __filename = fileURLToPath(import.meta.url);
@@ -46,20 +46,38 @@ async function createSingleDayData(trainDay: string): Promise<void> {
         const hd = 'HAA'; // 花都
         const qc = 'QCA'; // 清城
         const byjcb = 'BBA'; // 白云机场北
+        const xtn = 'NUQ'; // 新塘南
+        const szjc = 'SCA'; // 深圳机场
 
         // 构造所有站点对的数组
         const stationPairs = [
-            {trainDay: trainDay, fromStationCode: fsx, toStationCode: zq},    // [佛山西、肇庆]
+            {trainDay: trainDay, fromStationCode: fsx, toStationCode: zq},    // [肇庆、佛山西]
             {trainDay: trainDay, fromStationCode: fsx, toStationCode: py},    // [佛山西、番禺]
-            {trainDay: trainDay, fromStationCode: py, toStationCode: fsx},    // [番禺、佛山西]
             {trainDay: trainDay, fromStationCode: py, toStationCode: gzlhs},  // [番禺、广州莲花山]
-            {trainDay: trainDay, fromStationCode: hd, toStationCode: qc},     // [花都、清城]
+            {trainDay: trainDay, fromStationCode: py, toStationCode: gzlhs},  // [广州莲花山、小金口]
             {trainDay: trainDay, fromStationCode: qc, toStationCode: hd},     // [清城、花都]
             {trainDay: trainDay, fromStationCode: hd, toStationCode: byjcb},  // [花都、白云机场北]
-            {trainDay: trainDay, fromStationCode: byjcb, toStationCode: hd},  // [白云机场北、花都]
+            {trainDay: trainDay, fromStationCode: xtn, toStationCode: szjc},  // [新塘南、深圳机场]
         ];
 
-        const trainDetailStr = await FetchAllTrainDataUtils.fetchTrainDetails(stationPairs, trainDay);
+        // 自动增加反向
+        const getStationPairsWithReverse = (pairs: TrainQueryParam[]): TrainQueryParam[] => {
+            const result = [...pairs]; // 先复制原始数组
+
+            // 为每个原始站点对添加反向站点对
+            pairs.forEach(pair => {
+                result.push({
+                    trainDay: pair.trainDay,
+                    fromStationCode: pair.toStationCode,
+                    toStationCode: pair.fromStationCode
+                });
+            });
+
+            return result;
+        }
+
+        const allStationPairs = getStationPairsWithReverse(stationPairs);
+        const trainDetailStr = await FetchAllTrainDataUtils.fetchTrainDetails(allStationPairs, trainDay);
 
         // 写入文件
         fs.writeFileSync(filePath, trainDetailStr);
