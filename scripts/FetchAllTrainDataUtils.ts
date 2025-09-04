@@ -129,7 +129,6 @@ export class FetchAllTrainDataUtils {
 export async function randomDelay(minDelay: number, maxDelay: number): Promise<void> {
     // 计算随机延时时间
     const delay = minDelay + Math.floor(Math.random() * (maxDelay - minDelay + 1));
-    console.log(`等待 ${delay} 毫秒`);
     // 等待随机时间
     await new Promise(resolve => setTimeout(resolve, delay));
 }
