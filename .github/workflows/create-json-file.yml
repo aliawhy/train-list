@@ -16,37 +16,46 @@ jobs:
       contents: write
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        # 添加token以允许推送更改
-        token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # 添加token以允许推送更改
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # 获取所有历史记录以便打tag
+          fetch-depth: 0
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-    - name: Run test script
-      env:
-        API_T: ${{ secrets.API_T }}
-        API_D: ${{ secrets.API_D }}
-      run: npx tsx scripts/process.ts
+      - name: Run test script
+        env:
+          API_T: ${{ secrets.API_T }}
+          API_D: ${{ secrets.API_D }}
+        run: npx tsx scripts/process.ts
 
-    - name: Commit and push changes
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        # 添加所有变化
-        git add data/
-        # 检查是否有变化
-        if git diff --staged --quiet; then
-          echo "No changes to commit."
-        else
-          git commit -m "Update data directory for $(date -u +%Y%m%d)"
-          git push
-        fi
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          # 设置时区为北京时间
+          export TZ="Asia/Shanghai"
+          # 获取北京时区的日期
+          BEIJING_DATE=$(date '+%Y-%m-%d')
+          # 添加所有变化
+          git add data/
+          # 检查是否有变化
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Update data directory for $BEIJING_DATE"
+            git push
+            # 创建并推送tag
+            git tag -a "$BEIJING_DATE" -m "Daily update for $BEIJING_DATE"
+            git push origin "$BEIJING_DATE"
+          fi
