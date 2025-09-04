@@ -2,25 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {fileURLToPath} from 'url';
 import {FetchAllTrainDataUtils, randomDelay, TrainQueryParam} from "./FetchAllTrainDataUtils";
+import {getBeiJingDateStr, getDayOfWeek, getNextWeekdayBeijingDateStr} from "./DateUtil";
 
 // 获取当前文件的目录路径
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// 获取北京时间日期 (格式: 2025-05-01)
-function getBeijingDate(): string {
-    const now = new Date();
-    // 转换为北京时间 (UTC+8)
-    const beijingTime = new Date(now.getTime() + (now.getTimezoneOffset() + 480) * 60000);
-    return beijingTime.toISOString().split('T')[0];
-}
-
-// 获取指定天数后的日期
-function getDateAfterDays(baseDate: string, days: number): string {
-    const date = new Date(baseDate);
-    date.setDate(date.getDate() + days);
-    return date.toISOString().split('T')[0];
-}
 
 // 判断日期是否为周末（北京时区）
 function isWeekend(dateStr: string): boolean {
@@ -89,25 +75,42 @@ async function createSingleDayData(trainDay: string): Promise<string> {
  * 用户可以明确购买车票是：
  * 最近4天的数据（今天及未来3天）
  *
- * 更新最新4天数据
- * /data/GDCJ/real-time/gdcj-real-time-YYYY-MM-DD.json（每次更新4个文件）
+ * 更新最新4天数据（如果不含周末，则再追加一个周6）
+ * /data/GDCJ/real-time/gdcj-real-time-YYYY-MM-DD.json（每次更新4+1个文件）
  *
- * @param today
  */
-async function updateRealTimeData(today: string): Promise<{ weekdayData: string | null, weekendData: string | null }> {
-    console.log('更新实时数据：获取最近4天的数据');
+async function updateRealTimeData() {
 
     const realTimeDir = path.join(__dirname, '..', 'data', 'GDCJ', 'real-time');
     if (!fs.existsSync(realTimeDir)) {
         fs.mkdirSync(realTimeDir, {recursive: true});
     }
 
-    let lastWeekdayData: string | null = null;
-    let lastWeekendData: string | null = null;
-
-    // 获取最近4天的数据
+    const today = getBeiJingDateStr()
+    const targetDays = []
+    // 检查4天内是否包含周末
+    let hasWeekend = false;
     for (let i = 0; i < 4; i++) {
-        const targetDate = getDateAfterDays(today, i);
+        const currentDate = getBeiJingDateStr(i, today);
+        targetDays.push(currentDate)
+
+        const dayOfWeek = getDayOfWeek(currentDate);
+        if (dayOfWeek === 6 || dayOfWeek === 7) {
+            hasWeekend = true;
+            break;
+        }
+    }
+    if (!hasWeekend) {
+        const nextSaturday = getNextWeekdayBeijingDateStr(6, today); // 之后的第一个周六
+        targetDays.push(nextSaturday)
+    }
+
+    console.log('更新实时数据：获取日期为：\n', targetDays.join("、"));
+
+    for (let i = 0; i < targetDays.length; i++) {
+        const targetDate = targetDays[i];
+        console.log(`开始更新日期 ${targetDate} 的数据`);
+
         try {
             const trainDataStr = await createSingleDayData(targetDate);
 
@@ -116,64 +119,18 @@ async function updateRealTimeData(today: string): Promise<{ weekdayData: string 
             fs.writeFileSync(filePath, trainDataStr);
             console.log(`Created/Updated real-time file: ${filePath}`);
 
-            // 记录最后一个周内和周末数据
-            if (isWeekend(targetDate)) {
-                lastWeekendData = trainDataStr; // 迭代不断覆盖，以实现:取最后一个周末（若存在）
-            } else {
-                lastWeekdayData = trainDataStr; // 迭代不断覆盖，以实现:取最后一个周内
-            }
         } catch (error) {
             console.error(`更新失败，日期: ${targetDate}`, error);
             // 不中断整个流程，继续更新其他日期
         }
     }
-
-    return {weekdayData: lastWeekdayData, weekendData: lastWeekendData};
-}
-
-/**
- * 更新周内、周末模板数据：
- * /data/GDCJ/template/gdcj-template-weekday.json
- * /data/GDCJ/template/gdcj-template-weekend.json
- *
- * @param weekdayData
- * @param weekendData
- */
-async function updateTemplateData(weekdayData: string | null, weekendData: string | null): Promise<void> {
-    console.log('更新模板数据');
-
-    const templateDir = path.join(__dirname, '..', 'data', 'GDCJ', 'template');
-    if (!fs.existsSync(templateDir)) {
-        fs.mkdirSync(templateDir, {recursive: true});
-    }
-
-    // 更新周内模板
-    if (weekdayData) {
-        const weekdayFilePath = path.join(templateDir, 'gdcj-template-weekday.json');
-        fs.writeFileSync(weekdayFilePath, weekdayData);
-        console.log(`Updated weekday template: ${weekdayFilePath}`);
-    }
-
-    // 更新周末模板
-    if (weekendData) {
-        const weekendFilePath = path.join(templateDir, 'gdcj-template-weekend.json');
-        fs.writeFileSync(weekendFilePath, weekendData);
-        console.log(`Updated weekend template: ${weekendFilePath}`);
-    }
 }
 
 // 主函数
 async function main() {
-    const today = getBeijingDate();
-    console.log(`当前北京时间: ${today}`);
-
     try {
         // 更新实时数据并获取最后一个周内和周末数据
-        const {weekdayData, weekendData} = await updateRealTimeData(today);
-
-        // 更新模板数据
-        await updateTemplateData(weekdayData, weekendData);
-
+        await updateRealTimeData();
         console.log('数据更新完成');
     } catch (error) {
         console.error('主流程执行失败:', error);
