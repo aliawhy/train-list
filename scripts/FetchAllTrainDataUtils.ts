@@ -90,17 +90,18 @@ export class FetchAllTrainDataUtils {
     static async fetchTrainDetails(queries: TrainQueryParam[], queryDay: string) {
         const trainNumbers: string[] = await FetchAllTrainDataUtils.batchQueryTrainNumbers(queries); // 输出的车次已经基于原始车次去重，如G1 G2同车次，输出结果只会有其中一个
         const trainDetails: TrainDetail[] = await FetchAllTrainDataUtils.batchQueryTrainDetails(trainNumbers, queryDay);
-        return FetchAllTrainDataUtils.convertTrainDetailsToString(trainDetails);
+        return FetchAllTrainDataUtils.convertTrainDetailsToString(trainDetails, queryDay);
     }
 
     /**
      * 将TrainDetail数组转换为压缩格式的字符串
      * 格式：#分隔TrainDetail，@分隔StopTime，|分隔字段
      * @param trainDetails 列车详情数组
-     * @param queryDay 查询日期，格式，20220102 不带横线
+     * @param queryDay 查询日期，格式，可能带横向 2022-01-02 也可能不带 20220102
      * @returns 压缩后的字符串
      */
     static convertTrainDetailsToString(trainDetails: TrainDetail[], queryDay: string): string {
+
         // 按照StopTime定义的字段顺序
         const fieldOrder: (keyof StopTime)[] = [
             'stationName',
@@ -110,6 +111,8 @@ export class FetchAllTrainDataUtils {
             'startTime',
             'stationTrainCode',
         ];
+
+        queryDay = queryDay.replace(/-/g, ''); // 统一为不带-的格式
 
         // 将queryDay转换为Date对象用于计算日期差
         const queryDate = new Date(
