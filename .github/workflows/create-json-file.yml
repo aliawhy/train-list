@@ -55,7 +55,14 @@ jobs:
           else
             git commit -m "Update data directory for $BEIJING_DATE"
             git push
-            # 创建并推送tag
-            git tag -a "$BEIJING_DATE" -m "Daily update for $BEIJING_DATE"
-            git push origin "$BEIJING_DATE"
+          
+            # 获取当天已有的tag数量
+            EXISTING_TAGS=$(git tag -l "$BEIJING_DATE-*" | wc -l)
+            # 计算新tag的序号（现有数量+1）
+            TAG_NUMBER=$((EXISTING_TAGS + 1))
+            # 创建新tag
+            NEW_TAG="$BEIJING_DATE-$TAG_NUMBER"
+            git tag -a "$NEW_TAG" -m "Daily update for $BEIJING_DATE (#$TAG_NUMBER)"
+            git push origin "$NEW_TAG"
+            echo "Created tag: $NEW_TAG"
           fi
