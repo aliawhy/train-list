@@ -97,28 +97,64 @@ export class FetchAllTrainDataUtils {
      * 将TrainDetail数组转换为压缩格式的字符串
      * 格式：#分隔TrainDetail，@分隔StopTime，|分隔字段
      * @param trainDetails 列车详情数组
+     * @param queryDay 查询日期，格式，20220102 不带横线
      * @returns 压缩后的字符串
      */
-    static convertTrainDetailsToString(trainDetails: TrainDetail[]): string {
+    static convertTrainDetailsToString(trainDetails: TrainDetail[], queryDay: string): string {
         // 按照StopTime定义的字段顺序
         const fieldOrder: (keyof StopTime)[] = [
             'stationName',
-            'arraiveDate',
+            'arraiveDate', // 到达此站日期，格式，20220102 不带横线，为了压缩，改成和queryDay的差
             'arriveTime',
-            'trainDate',
+            'trainDate',  // 从此站出发日期，格式，20220102 不带横线，为了压缩，改成和queryDay的差
             'startTime',
             'stationTrainCode',
         ];
 
+        // 将queryDay转换为Date对象用于计算日期差
+        const queryDate = new Date(
+            parseInt(queryDay.substring(0, 4)),
+            parseInt(queryDay.substring(4, 6)) - 1,
+            parseInt(queryDay.substring(6, 8))
+        );
+
         return trainDetails.map(trainDetail => {
             // 将每个StopTime转换为字段分隔的字符串
             const stopTimesStr = trainDetail.stopTime.map(stopTime => {
-                return fieldOrder.map(field => stopTime[field]).join('|');
+                return fieldOrder.map(field => {
+                    let value = stopTime[field];
+
+                    // 对日期字段进行压缩处理
+                    if (field === 'arraiveDate' || field === 'trainDate') {
+                        const dateStr = value as string;
+                        if (dateStr) {
+                            const date = new Date(
+                                parseInt(dateStr.substring(0, 4)),
+                                parseInt(dateStr.substring(4, 6)) - 1,
+                                parseInt(dateStr.substring(6, 8))
+                            );
+
+                            // 计算日期差（天数）
+                            const timeDiff = date.getTime() - queryDate.getTime();
+                            const dayDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
+
+                            // 根据规则转换：0为空字符串，负数为-x，正数为x
+                            if (dayDiff === 0) {
+                                value = '';
+                            } else {
+                                value = `${dayDiff}`;
+                            }
+                        }
+                    }
+
+                    return value;
+                }).join('|');
             }).join('@');
 
             return stopTimesStr;
         }).join('#');
     }
+
 }
 
 /**
