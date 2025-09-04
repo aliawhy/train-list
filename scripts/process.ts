@@ -24,6 +24,7 @@ async function createSingleDayData(trainDay: string): Promise<string> {
         const fsx = 'FXA'; // 固定值 佛山西
         const py = 'PYA'; // 固定值 番禺
         const gzlhs = 'GLA'; // 固定值 广州莲花山
+        const xjk = 'NKQ'; // 固定值 小金口
         const dgx = 'DXA'; // 固定值 东莞西，后续可能会用到
         const xpx = 'EGQ'; // 固定值 西平西，后续可能会用
         const hd = 'HAA'; // 花都
@@ -34,10 +35,10 @@ async function createSingleDayData(trainDay: string): Promise<string> {
 
         // 构造所有站点对的数组
         const stationPairs = [
-            {trainDay: trainDay, fromStationCode: fsx, toStationCode: zq},    // [肇庆、佛山西]
+            {trainDay: trainDay, fromStationCode: zq, toStationCode: fsx},    // [肇庆、佛山西]
             {trainDay: trainDay, fromStationCode: fsx, toStationCode: py},    // [佛山西、番禺]
             {trainDay: trainDay, fromStationCode: py, toStationCode: gzlhs},  // [番禺、广州莲花山]
-            {trainDay: trainDay, fromStationCode: py, toStationCode: gzlhs},  // [广州莲花山、小金口]
+            {trainDay: trainDay, fromStationCode: gzlhs, toStationCode: xjk},  // [广州莲花山、小金口]
             {trainDay: trainDay, fromStationCode: qc, toStationCode: hd},     // [清城、花都]
             {trainDay: trainDay, fromStationCode: hd, toStationCode: byjcb},  // [花都、白云机场北]
             {trainDay: trainDay, fromStationCode: xtn, toStationCode: szjc},  // [新塘南、深圳机场]
