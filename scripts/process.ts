@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {fileURLToPath} from 'url';
-import {FetchAllTrainDataUtils, TrainQueryParam} from "./FetchAllTrainDataUtils";
+import {FetchAllTrainDataUtils, randomDelay, TrainQueryParam} from "./FetchAllTrainDataUtils";
 
 // 获取当前文件的目录路径
 const __filename = fileURLToPath(import.meta.url);
@@ -19,22 +19,19 @@ function getBeijingDate(): string {
 function getDateAfterDays(baseDate: string, days: number): string {
     const date = new Date(baseDate);
     date.setDate(date.getDate() + days);
-    return date.toISOString().split('T')[0]; // 这里基于传入日期，按天增加，不会产生日期时区问题，如果需要按半天增加，会有问题，但不是本场景需要考虑
+    return date.toISOString().split('T')[0];
 }
 
-// 检查文件是否存在
-function checkFileExists(filePath: string): boolean {
-    return fs.existsSync(filePath);
+// 判断日期是否为周末（北京时区）
+function isWeekend(dateStr: string): boolean {
+    const date = new Date(dateStr);
+    const day = date.getDay();
+    return day === 0 || day === 6; // 0是周日，6是周六
 }
 
 // 创建单日数据文件
-async function createSingleDayData(trainDay: string): Promise<void> {
-    const dirPath = path.join(__dirname, '..', 'data', 'GDCJ');
-    if (!fs.existsSync(dirPath)) {
-        fs.mkdirSync(dirPath, {recursive: true});
-    }
-
-    const filePath = path.join(dirPath, `GDCJ-${trainDay}.json`);
+async function createSingleDayData(trainDay: string): Promise<string> {
+    await randomDelay(1000, 3000); // 每天查询间隔几秒钟
 
     try {
         const zq = 'ZQA'; // 固定值 肇庆
@@ -79,64 +76,90 @@ async function createSingleDayData(trainDay: string): Promise<void> {
         const allStationPairs = getStationPairsWithReverse(stationPairs);
         const trainDetailStr = await FetchAllTrainDataUtils.fetchTrainDetails(allStationPairs, trainDay);
 
-        // 写入文件
-        fs.writeFileSync(filePath, trainDetailStr);
-        console.log(`Created/Updated file: ${filePath}`);
+        return trainDetailStr;
     } catch (error) {
         console.error(`Error creating data for ${trainDay}:`, error);
         throw error;
     }
 }
 
-// 初始化策略：创建1-15天的数据
-async function initializeData(today: string): Promise<void> {
-    console.log('执行初始化策略：创建1-15天的数据');
+/**
+ * 说明：
+ * 广东城际区分周内图和周末图
+ * 用户可以明确购买车票是：
+ * 最近4天的数据（今天及未来3天）
+ *
+ * 更新最新4天数据
+ * /data/GDCJ/real-time/gdcj-real-time-YYYY-MM-DD.json（每次更新4个文件）
+ *
+ * @param today
+ */
+async function updateRealTimeData(today: string): Promise<{ weekdayData: string | null, weekendData: string | null }> {
+    console.log('更新实时数据：获取最近4天的数据');
 
-    const maxInitDay = 15; // 值为15，调试时可改为1
-    for (let i = 0; i < maxInitDay; i++) {
+    const realTimeDir = path.join(__dirname, '..', 'data', 'GDCJ', 'real-time');
+    if (!fs.existsSync(realTimeDir)) {
+        fs.mkdirSync(realTimeDir, {recursive: true});
+    }
+
+    let lastWeekdayData: string | null = null;
+    let lastWeekendData: string | null = null;
+
+    // 获取最近4天的数据
+    for (let i = 0; i < 4; i++) {
         const targetDate = getDateAfterDays(today, i);
         try {
-            await createSingleDayData(targetDate);
-        } catch (error) {
-            console.error(`初始化失败，在第 ${i + 1} 天 (${targetDate}) 处中断`);
-            // 不中断整个流程，继续更新其他日期
-        }
-    }
-}
+            const trainDataStr = await createSingleDayData(targetDate);
 
-// 每日递增策略：更新第1、2、3天和第14、15天的数据
-async function incrementalUpdate(today: string): Promise<void> {
-    console.log('执行每日递增策略：更新特定天数的数据');
+            // 保存实时数据
+            const filePath = path.join(realTimeDir, `gdcj-real-time-${targetDate}.json`);
+            fs.writeFileSync(filePath, trainDataStr);
+            console.log(`Created/Updated real-time file: ${filePath}`);
 
-    // 需要更新的天数：第1、2、3天和第14、15天
-    const daysToUpdate = [0, 1, 2, 13, 14]; // 0是今天，1是明天，以此类推
-
-    for (const dayOffset of daysToUpdate) {
-        const targetDate = getDateAfterDays(today, dayOffset);
-        try {
-            await createSingleDayData(targetDate);
+            // 记录最后一个周内和周末数据
+            if (isWeekend(targetDate)) {
+                lastWeekendData = trainDataStr; // 迭代不断覆盖，以实现:取最后一个周末（若存在）
+            } else {
+                lastWeekdayData = trainDataStr; // 迭代不断覆盖，以实现:取最后一个周内
+            }
         } catch (error) {
             console.error(`更新失败，日期: ${targetDate}`, error);
             // 不中断整个流程，继续更新其他日期
         }
     }
+
+    return {weekdayData: lastWeekdayData, weekendData: lastWeekendData};
 }
 
-// 检查是否需要初始化
-async function checkInitializationNeeded(today: string): Promise<boolean> {
-    // 检查1-14天的文件是否存在（第15天的数据是最新数据 会每天都刷新）
-    const maxCheckDay = 14
-    for (let i = 0; i < maxCheckDay; i++) {
-        const targetDate = getDateAfterDays(today, i);
-        const filePath = path.join(__dirname, '..', 'data', 'GDCJ', `GDCJ-${targetDate}.json`);
+/**
+ * 更新周内、周末模板数据：
+ * /data/GDCJ/template/gdcj-template-weekday.json
+ * /data/GDCJ/template/gdcj-template-weekend.json
+ *
+ * @param weekdayData
+ * @param weekendData
+ */
+async function updateTemplateData(weekdayData: string | null, weekendData: string | null): Promise<void> {
+    console.log('更新模板数据');
 
-        if (!checkFileExists(filePath)) {
-            console.log(`检测到缺失文件: GDCJ-${targetDate}.json，需要初始化`);
-            return true;
-        }
+    const templateDir = path.join(__dirname, '..', 'data', 'GDCJ', 'template');
+    if (!fs.existsSync(templateDir)) {
+        fs.mkdirSync(templateDir, {recursive: true});
     }
 
-    return false;
+    // 更新周内模板
+    if (weekdayData) {
+        const weekdayFilePath = path.join(templateDir, 'gdcj-template-weekday.json');
+        fs.writeFileSync(weekdayFilePath, weekdayData);
+        console.log(`Updated weekday template: ${weekdayFilePath}`);
+    }
+
+    // 更新周末模板
+    if (weekendData) {
+        const weekendFilePath = path.join(templateDir, 'gdcj-template-weekend.json');
+        fs.writeFileSync(weekendFilePath, weekendData);
+        console.log(`Updated weekend template: ${weekendFilePath}`);
+    }
 }
 
 // 主函数
@@ -145,14 +168,11 @@ async function main() {
     console.log(`当前北京时间: ${today}`);
 
     try {
-        // 检查是否需要初始化
-        const needInit = await checkInitializationNeeded(today);
+        // 更新实时数据并获取最后一个周内和周末数据
+        const {weekdayData, weekendData} = await updateRealTimeData(today);
 
-        if (needInit) {
-            await initializeData(today);
-        } else {
-            await incrementalUpdate(today);
-        }
+        // 更新模板数据
+        await updateTemplateData(weekdayData, weekendData);
 
         console.log('数据更新完成');
     } catch (error) {
