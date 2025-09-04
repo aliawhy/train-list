@@ -47,6 +47,8 @@ export class FetchAllTrainDataUtils {
             }
         }
 
+        console.debug(`车次信息`)
+        console.debug(trainNumbers)
         console.debug(`车次数量 ${trainNumbers.length}`)
         return trainNumbers;
     }
