@@ -61,9 +61,7 @@ async function createSingleDayData(trainDay: string): Promise<string> {
         }
 
         const allStationPairs = getStationPairsWithReverse(stationPairs);
-        const trainDetailStr = await FetchAllTrainDataUtils.fetchTrainDetails(allStationPairs, trainDay);
-
-        return trainDetailStr;
+        return await FetchAllTrainDataUtils.fetchTrainDetails(allStationPairs, trainDay);
     } catch (error) {
         console.error(`Error creating data for ${trainDay}:`, error);
         throw error;

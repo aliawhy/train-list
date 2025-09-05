@@ -2,6 +2,8 @@ import fetch from 'node-fetch';
 
 export interface TrainInfo {
     trainNumber: string; // 列车编号 如G123
+    departureTime: string;  // 出发时间12:01 这样的格式(已是北京时间)
+    arrivalTime: string;  // 出发时间12:01 这样的格式(已是北京时间)
     originTrainCode: string;  // 此车次的始发站的原始车次编码，比如苏州到上海K4915，原始车次编码是K4918，则值是93000K49180C，还未清楚原始车次编码93000K49180C转换成原始车次怎么提取
     departureCode: string; // 出发站编码
     arrivalCode: string;// 到达站编码
@@ -75,6 +77,8 @@ export class TrainQueryUtils {
                     trainNumber: split[3],
                     departureCode: split[6],
                     arrivalCode: split[7],
+                    departureTime: split[8], // 开车时刻，例如 "08:20"
+                    arrivalTime: split[9], // 到达时刻，例如 "10:20"
                 });
             }
 

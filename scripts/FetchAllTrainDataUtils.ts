@@ -1,11 +1,25 @@
-import {TrainQueryUtils} from "./TrainQueryUtils";
+import {TrainInfo, TrainQueryUtils} from "./TrainQueryUtils";
 import {StopTime, TrainDetail, TrainDetailUtils} from "./TrainDetailUtils";
+import {getDayOfWeek} from "./DateUtil";
 
 export type TrainQueryParam = {
     trainDay: string;
     fromStationCode: string;
     toStationCode: string;
 };
+
+export const lastTrainInfoMap: Record<'weekday' | 'weekend', TrainInfo[]> = {
+    weekday: [],
+    weekend: [],
+}
+
+export const lastTrainDetailStrMap: Record<'weekday' | 'weekend', string> = {
+    weekday: '',
+    weekend: '',
+}
+
+const weekdaySet = new Set<number>([1, 2, 3, 4, 5])
+
 
 export class FetchAllTrainDataUtils {
 
@@ -15,9 +29,10 @@ export class FetchAllTrainDataUtils {
      */
     static async batchQueryTrainNumbers(
         queries: TrainQueryParam[]
-    ): Promise<string[]> {
+    ): Promise<TrainInfo[], string[]> {
         const uniqueTrainSet = new Set<string>();
-        const trainNumbers: string[] = [];
+        const trainNumbers: string[] = []; // 车次号
+        const trainInfos: TrainInfo[] = []; // 车次号对应车次详情
 
         for (const query of queries) {
             try {
@@ -40,6 +55,7 @@ export class FetchAllTrainDataUtils {
                     if (!uniqueTrainSet.has(train.originTrainCode)) {
                         uniqueTrainSet.add(train.originTrainCode);
                         trainNumbers.push(train.trainNumber);
+                        trainInfos.push(train)
                     }
                 }
             } catch (error) {
@@ -49,7 +65,7 @@ export class FetchAllTrainDataUtils {
 
         console.debug("车次信息： \n", trainNumbers.join(","));
         console.debug(`车次数量 ${trainNumbers.length}`)
-        return trainNumbers;
+        return {trainInfos, trainNumbers};
     }
 
     /**
@@ -89,9 +105,34 @@ export class FetchAllTrainDataUtils {
     }
 
     static async fetchTrainDetails(queries: TrainQueryParam[], queryDay: string) {
-        const trainNumbers: string[] = await FetchAllTrainDataUtils.batchQueryTrainNumbers(queries); // 输出的车次已经基于原始车次去重，如G1 G2同车次，输出结果只会有其中一个
-        const trainDetails: TrainDetail[] = await FetchAllTrainDataUtils.batchQueryTrainDetails(trainNumbers, queryDay);
-        return FetchAllTrainDataUtils.convertTrainDetailsToString(trainDetails, queryDay);
+        let dayOfWeek = getDayOfWeek(queryDay);
+        const {trainInfos, trainNumbers} = await FetchAllTrainDataUtils.batchQueryTrainNumbers(queries); // 输出的车次已经基于原始车次去重，如G1 G2同车次，输出结果只会有其中一个
+
+        // 判断是否和上一次查询的周内/周末的车辆数据完全一样
+        const cacheType = weekdaySet.has(dayOfWeek) ? 'weekday' : 'weekend';
+        const lastTrainInfos: TrainInfo[] = lastTrainInfoMap[cacheType] || []
+        const isTrainInfosEqual = checkTrainInfosEqual(trainInfos, lastTrainInfos)
+
+        let resultTrainDetailStr: string = ''
+        if (isTrainInfosEqual) {
+            resultTrainDetailStr = lastTrainDetailStrMap[cacheType]
+            console.log(`本次 ${queryDay} 查询和上次 ${cacheType === 'weekday' ? '周内' : '周末'} 车辆信息完全一样，使用上次数据`)
+            // 不直接return，由下面进行再一次防卫
+        }
+
+        if (!resultTrainDetailStr) {
+            console.log(`本次 ${queryDay} 查询和上次数据不一样， 进行车次详情查询！`)
+
+            const trainDetails: TrainDetail[] = await FetchAllTrainDataUtils.batchQueryTrainDetails(trainNumbers, queryDay);
+            const trainDetailStr = FetchAllTrainDataUtils.convertTrainDetailsToString(trainDetails, queryDay);
+            // 更新缓存
+            lastTrainInfoMap[cacheType] = trainInfos
+            lastTrainDetailStrMap[cacheType] = trainDetailStr
+
+            resultTrainDetailStr = trainDetailStr
+        }
+
+        return resultTrainDetailStr
     }
 
     /**
@@ -171,4 +212,31 @@ export async function randomDelay(minDelay: number, maxDelay: number): Promise<v
     const delay = minDelay + Math.floor(Math.random() * (maxDelay - minDelay + 1));
     // 等待随机时间
     await new Promise(resolve => setTimeout(resolve, delay));
+}
+
+
+function checkTrainInfosEqual(arr1: TrainInfo[], arr2: TrainInfo[]): boolean {
+    // 首先检查长度是否相同
+    if (arr1.length !== arr2.length) {
+        return false;
+    }
+
+    // 逐个比较每个元素
+    for (let i = 0; i < arr1.length; i++) {
+        const train1 = arr1[i];
+        const train2 = arr2[i];
+
+        // 检查所有字段是否相等
+        if (train1.trainNumber !== train2.trainNumber ||
+            train1.departureTime !== train2.departureTime ||
+            train1.arrivalTime !== train2.arrivalTime ||
+            train1.originTrainCode !== train2.originTrainCode ||
+            train1.departureCode !== train2.departureCode ||
+            train1.arrivalCode !== train2.arrivalCode) {
+            return false;
+        }
+    }
+
+    // 所有检查都通过，返回true
+    return true;
 }
