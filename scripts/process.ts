@@ -96,7 +96,6 @@ async function updateRealTimeData() {
         const dayOfWeek = getDayOfWeek(currentDate);
         if (dayOfWeek === 6 || dayOfWeek === 7) {
             hasWeekend = true;
-            break;
         }
     }
     if (!hasWeekend) {
