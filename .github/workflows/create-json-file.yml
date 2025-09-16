@@ -59,13 +59,27 @@ jobs:
             TAG_NUMBER=$((EXISTING_TAGS + 1))
             # 创建新tag名称
             NEW_TAG="$BEIJING_DATE-$TAG_NUMBER"
-            
+          
             # commit和推送
             git commit -m "Update data directory for $BEIJING_DATE (#$TAG_NUMBER)"
             git push
-            
-            # 创建tag
-            git tag -a "$NEW_TAG" -m "Daily update for $BEIJING_DATE (#$TAG_NUMBER)"
-            git push origin "$NEW_TAG"
-            echo "Created tag: $NEW_TAG"
+            echo "Created commit for $BEIJING_DATE"
           fi
+
+      - name: Create daily tag
+        run: |
+          # 设置时区为北京时间
+          export TZ="Asia/Shanghai"
+          # 获取北京时区的日期
+          BEIJING_DATE=$(date '+%Y-%m-%d')
+          # 获取当天已有的tag数量
+          EXISTING_TAGS=$(git tag -l "$BEIJING_DATE-*" | wc -l)
+          # 计算新tag的序号（现有数量+1）
+          TAG_NUMBER=$((EXISTING_TAGS + 1))
+          # 创建新tag名称
+          NEW_TAG="$BEIJING_DATE-$TAG_NUMBER"
+          
+          # 创建tag
+          git tag -a "$NEW_TAG" -m "Daily update for $BEIJING_DATE (#$TAG_NUMBER)"
+          git push origin "$NEW_TAG"
+          echo "Created tag: $NEW_TAG"
