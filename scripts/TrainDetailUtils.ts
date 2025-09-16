@@ -68,6 +68,9 @@ export class TrainDetailUtils {
             const data = await TrainDetailUtils.fetchTrainData(trainCode, startDay);
             const result: TrainDetail = data?.data?.trainDetail || {} as TrainDetail;
             result.stopTime = result.stopTime || [];
+            if (result.stopTime.length === 0) {
+                console.debug(`列车${trainCode}, ${startDay}停靠数量为${result.stopTime.length}`)
+            }
 
             for (let i = 0; i < result.stopTime.length; i++) {
                 const stopTime = result.stopTime[i] || {} as StopTime;
@@ -87,7 +90,7 @@ export class TrainDetailUtils {
 
             return result;
         } catch (error) {
-            console.error('Error in queryTrainDetail:', error);
+            console.error(`Error in queryTrainDetail. 列车${trainCode}, ${startDay}查询异常:`, error);
             throw error;
         }
     }

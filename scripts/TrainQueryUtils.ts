@@ -7,6 +7,8 @@ export interface TrainInfo {
     originTrainCode: string;  // 此车次的始发站的原始车次编码，比如苏州到上海K4915，原始车次编码是K4918，则值是93000K49180C，还未清楚原始车次编码93000K49180C转换成原始车次怎么提取
     departureCode: string; // 出发站编码
     arrivalCode: string;// 到达站编码
+    originStationCode: string; // 此趟列车，始发站编码
+    terminalStationCode: string; // 此趟列车，终到站编码
 }
 
 export class TrainQueryUtils {
@@ -75,6 +77,8 @@ export class TrainQueryUtils {
                 trainInfoList.push({
                     originTrainCode: split[2],
                     trainNumber: split[3],
+                    originStationCode: split[4],
+                    terminalStationCode: split[5],
                     departureCode: split[6],
                     arrivalCode: split[7],
                     departureTime: split[8], // 开车时刻，例如 "08:20"
