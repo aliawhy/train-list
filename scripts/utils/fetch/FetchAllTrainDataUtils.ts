@@ -1,6 +1,9 @@
 import {TrainInfo, TrainQueryUtils} from "./TrainQueryUtils";
-import {StopTime, TrainDetail, TrainDetailUtils} from "./TrainDetailUtils";
-import {getDayOfWeek} from "./DateUtil";
+import {TrainDetail, TrainDetailUtils} from "./TrainDetailUtils";
+import {getDayOfWeek} from "../date/DateUtil";
+import {getQueryStationPairs, isTest} from "../../processGDCJ";
+import {randomDelay} from "../delay/DelayUtil";
+
 
 export type TrainQueryParam = {
     trainDay: string;
@@ -16,6 +19,11 @@ export const lastTrainInfoMap: Record<'weekday' | 'weekend', TrainInfo[]> = {
 export const lastTrainDetailStrMap: Record<'weekday' | 'weekend', string> = {
     weekday: '',
     weekend: '',
+}
+
+export const lastTrainDetailMap: Record<'weekday' | 'weekend', TrainDetail[]> = {
+    weekday: [],
+    weekend: [],
 }
 
 const weekdaySet = new Set<number>([1, 2, 3, 4, 5])
@@ -34,7 +42,15 @@ export class FetchAllTrainDataUtils {
         const trainNumbers: string[] = []; // 车次号
         const trainInfos: TrainInfo[] = []; // 车次号对应车次详情
 
+        let cnt = 1;
         for (const query of queries) {
+            if (isTest) {
+                cnt++
+                if (cnt > 3) {
+                    break; // 调试使用，避免需要查很久，请保留
+                }
+            }
+
             try {
                 // 执行单个查询
                 await randomDelay(500, 1000);
@@ -83,18 +99,20 @@ export class FetchAllTrainDataUtils {
         // 遍历所有车次
         let cnt = 1
         for (const trainNumber of trainNumbers) {
+            if (isTest) {
+                cnt++
+                if (cnt > 3) {
+                    break; // 调试使用，避免需要查很久，请保留
+                }
+            }
+
             try {
                 // 查询单个车次详情
                 await randomDelay(500, 1000);
-                const trainDetail = await TrainDetailUtils.queryTrainDetail(trainNumber, queryDay);
+                const trainDetail = await TrainDetailUtils.queryTrainDetailAndSimpleField(trainNumber, queryDay);
 
                 // 将结果存入Map
                 trainDetails.push(trainDetail);
-
-                // cnt++
-                // if (cnt > 3) {
-                //     break; // 调试使用，避免需要查很久，请保留
-                // }
             } catch (error) {
                 console.error(`查询车次详情失败: ${trainNumber}${queryDay}`, error);
             }
@@ -104,120 +122,31 @@ export class FetchAllTrainDataUtils {
         return trainDetails;
     }
 
-    static async fetchTrainDetails(queries: TrainQueryParam[], queryDay: string) {
-        let dayOfWeek = getDayOfWeek(queryDay);
+    static async fetchTrainDetails(trainDay: string) {
+        const queries = getQueryStationPairs(trainDay);
         const {trainInfos, trainNumbers} = await FetchAllTrainDataUtils.batchQueryTrainNumbers(queries); // 输出的车次已经基于原始车次去重，如G1 G2同车次，输出结果只会有其中一个
 
+        let dayOfWeek = getDayOfWeek(trainDay);
         // 判断是否和上一次查询的周内/周末的车辆数据完全一样
         const cacheType = weekdaySet.has(dayOfWeek) ? 'weekday' : 'weekend';
         const lastTrainInfos: TrainInfo[] = lastTrainInfoMap[cacheType] || []
         const isTrainInfosEqual = checkTrainInfosEqual(trainInfos, lastTrainInfos)
 
-        let resultTrainDetailStr: string = ''
         if (isTrainInfosEqual) {
-            resultTrainDetailStr = lastTrainDetailStrMap[cacheType]
-            console.log(`本次 ${queryDay} 查询和上次 ${cacheType === 'weekday' ? '周内' : '周末'} 车辆信息完全一样，使用上次数据`)
-            // 不直接return，由下面进行再一次防卫
+            console.log(`本次 ${trainDay} ${cacheType} 查询和上次数据一样， 直接返回！`)
+            return []
         }
 
-        if (!resultTrainDetailStr) {
-            console.log(`本次 ${queryDay} 查询和上次数据不一样， 进行车次详情查询！`)
-
-            const trainDetails: TrainDetail[] = await FetchAllTrainDataUtils.batchQueryTrainDetails(trainNumbers, queryDay);
-            const trainDetailStr = FetchAllTrainDataUtils.convertTrainDetailsToString(trainDetails, queryDay);
-            // 更新缓存
-            lastTrainInfoMap[cacheType] = trainInfos
-            lastTrainDetailStrMap[cacheType] = trainDetailStr
-
-            resultTrainDetailStr = trainDetailStr
-        }
-
-        return resultTrainDetailStr
+        lastTrainInfoMap[cacheType] = trainInfos
+        console.log(`本次 ${trainDay} ${cacheType} 查询和上次数据不一样， 进行车次详情查询！`)
+        return await FetchAllTrainDataUtils.batchQueryTrainDetails(trainNumbers, trainDay);
     }
-
-    /**
-     * 将TrainDetail数组转换为压缩格式的字符串
-     * 格式：#分隔TrainDetail，@分隔StopTime，|分隔字段
-     * @param trainDetails 列车详情数组
-     * @param queryDay 查询日期，格式，可能带横向 2022-01-02 也可能不带 20220102
-     * @returns 压缩后的字符串
-     */
-    static convertTrainDetailsToString(trainDetails: TrainDetail[], queryDay: string): string {
-
-        // 按照StopTime定义的字段顺序
-        const fieldOrder: (keyof StopTime)[] = [
-            'stationName',
-            'arraiveDate', // 到达此站日期，格式，20220102 不带横线，为了压缩，改成和queryDay的差
-            'arriveTime',
-            'trainDate',  // 从此站出发日期，格式，20220102 不带横线，为了压缩，改成和queryDay的差
-            'startTime',
-            'stationTrainCode',
-        ];
-
-        queryDay = queryDay.replace(/-/g, ''); // 统一为不带-的格式
-
-        // 将queryDay转换为Date对象用于计算日期差
-        const queryDate = new Date(
-            parseInt(queryDay.substring(0, 4)),
-            parseInt(queryDay.substring(4, 6)) - 1,
-            parseInt(queryDay.substring(6, 8))
-        );
-
-        return trainDetails.map(trainDetail => {
-            // 将每个StopTime转换为字段分隔的字符串
-            const stopTimesStr = trainDetail.stopTime.map(stopTime => {
-                return fieldOrder.map(field => {
-                    let value = stopTime[field];
-
-                    // 对日期字段进行压缩处理
-                    if (field === 'arraiveDate' || field === 'trainDate') {
-                        const dateStr = value as string;
-                        if (dateStr) {
-                            const date = new Date(
-                                parseInt(dateStr.substring(0, 4)),
-                                parseInt(dateStr.substring(4, 6)) - 1,
-                                parseInt(dateStr.substring(6, 8))
-                            );
-
-                            // 计算日期差（天数）
-                            const timeDiff = date.getTime() - queryDate.getTime();
-                            const dayDiff = Math.floor(timeDiff / (1000 * 3600 * 24));
-
-                            // 根据规则转换：0为空字符串，负数为-x，正数为x
-                            if (dayDiff === 0) {
-                                value = '';
-                            } else {
-                                value = `${dayDiff}`;
-                            }
-                        }
-                    }
-
-                    return value;
-                }).join('|');
-            }).join('@');
-
-            return stopTimesStr;
-        }).join('#');
-    }
-
-}
-
-/**
- * 随机延时函数
- * @param minDelay 最小延时（毫秒）
- * @param maxDelay 最大延时（毫秒）
- */
-export async function randomDelay(minDelay: number, maxDelay: number): Promise<void> {
-    // 计算随机延时时间
-    const delay = minDelay + Math.floor(Math.random() * (maxDelay - minDelay + 1));
-    // 等待随机时间
-    await new Promise(resolve => setTimeout(resolve, delay));
 }
 
 
 function checkTrainInfosEqual(arr1: TrainInfo[], arr2: TrainInfo[]): boolean {
     // 首先检查长度是否相同
-    if (arr1.length !== arr2.length) {
+    if (!arr1 || !arr2 || arr1.length !== arr2.length) {
         return false;
     }
 

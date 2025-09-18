@@ -1,4 +1,4 @@
-name: Daily Test Runner
+name: GDCJ TrainDetail Runner
 
 on:
   schedule:
@@ -37,7 +37,7 @@ jobs:
         env:
           API_T: ${{ secrets.API_T }}
           API_D: ${{ secrets.API_D }}
-        run: npx tsx scripts/process.ts
+        run: npx tsx scripts/processGDCJ.ts
 
       - name: Commit and push changes
         run: |
@@ -54,11 +54,11 @@ jobs:
             echo "No changes to commit."
           else
             # 获取当天已有的tag数量
-            EXISTING_TAGS=$(git tag -l "$BEIJING_DATE-*" | wc -l)
+            EXISTING_TAGS=$(git tag -l "gdcj-train-detail-$BEIJING_DATE-*" | wc -l)
             # 计算新tag的序号（现有数量+1）
             TAG_NUMBER=$((EXISTING_TAGS + 1))
             # 创建新tag名称
-            NEW_TAG="$BEIJING_DATE-$TAG_NUMBER"
+            NEW_TAG="gdcj-train-detail-$BEIJING_DATE-$TAG_NUMBER"
           
             # commit和推送
             git commit -m "Update data directory for $BEIJING_DATE (#$TAG_NUMBER)"
@@ -73,11 +73,11 @@ jobs:
           # 获取北京时区的日期
           BEIJING_DATE=$(date '+%Y-%m-%d')
           # 获取当天已有的tag数量
-          EXISTING_TAGS=$(git tag -l "$BEIJING_DATE-*" | wc -l)
+          EXISTING_TAGS=$(git tag -l "gdcj-train-detail-$BEIJING_DATE-*" | wc -l)
           # 计算新tag的序号（现有数量+1）
           TAG_NUMBER=$((EXISTING_TAGS + 1))
           # 创建新tag名称
-          NEW_TAG="$BEIJING_DATE-$TAG_NUMBER"
+          NEW_TAG="gdcj-train-detail-$BEIJING_DATE-$TAG_NUMBER"
           
           # 创建tag
           git tag -a "$NEW_TAG" -m "Daily update for $BEIJING_DATE (#$TAG_NUMBER)"

@@ -1,0 +1,12 @@
+station-graph的gz分块文件，
+在python_all仓库下生成，
+ts生成这么大文件袋msgpack有点费时间
+
+生成后粘贴到这里，commit push后，
+手动打tag：
+
+tag结构为 station-graph-数字
+
+如：
+git tag -a "station-graph-1" -m "station-graph-1"
+git push origin "station-graph-1"

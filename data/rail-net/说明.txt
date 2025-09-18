@@ -1,0 +1,13 @@
+rail-net的gz文件
+在alili-tool仓库下
+BuildRailNetRawGz.ts生成
+
+生成后粘贴到这里，commit push后，
+手动打tag：
+
+tag结构为 rail-net-数字
+
+如：
+git tag -a "rail-net-1" -m "rail-net-1"
+git push origin "rail-net-1"
+

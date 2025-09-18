@@ -21,10 +21,12 @@ export interface TrainDetail {
 export class TrainDetailUtils {
     /**
      * 获取列车数据
+     * 实际发起调用的函数
+     *
      * @param trainCode 车次号
      * @param startDay 出发日期，格式：YYYYMMDD
      */
-    private static async fetchTrainData(trainCode: string, startDay: string): Promise<any> {
+    private static async queryTrainDetail(trainCode: string, startDay: string): Promise<any> {
         const baseUrl = process.env.API_D;
 
         if (!baseUrl) {
@@ -57,15 +59,16 @@ export class TrainDetailUtils {
     }
 
     /**
-     * 查询列车车次详情
+     * 查询列车车次详情，并简化字段，减少空间
+     *
      * @param trainCode 车次号
      * @param startDay 出发日期，格式：YYYYMMDD
      */
-    public static async queryTrainDetail(trainCode: string, startDay: string): Promise<TrainDetail> {
+    public static async queryTrainDetailAndSimpleField(trainCode: string, startDay: string): Promise<TrainDetail> {
         try {
             startDay = startDay.replace(/-/g, ''); // 转换为需要的格式
 
-            const data = await TrainDetailUtils.fetchTrainData(trainCode, startDay);
+            const data = await TrainDetailUtils.queryTrainDetail(trainCode, startDay);
             const result: TrainDetail = data?.data?.trainDetail || {} as TrainDetail;
             result.stopTime = result.stopTime || [];
             if (result.stopTime.length === 0) {
