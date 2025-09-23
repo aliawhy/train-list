@@ -11,3 +11,6 @@ tag结构为 rail-net-数字
 git tag -a "rail-net-1" -m "rail-net-1"
 git push origin "rail-net-1"
 
+删除：
+git tag -d "rail-net-1"
+git push origin :refs/tags/"rail-net-1"

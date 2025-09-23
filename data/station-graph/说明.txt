@@ -10,3 +10,7 @@ tag结构为 station-graph-数字
 如：
 git tag -a "station-graph-1" -m "station-graph-1"
 git push origin "station-graph-1"
+
+删除：
+git tag -d "station-graph-1"
+git push origin :refs/tags/"station-graph-1"
