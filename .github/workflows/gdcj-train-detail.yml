@@ -37,49 +37,50 @@ jobs:
         env:
           API_T: ${{ secrets.API_T }}
           API_D: ${{ secrets.API_D }}
+          GITEE_URL: ${{ secrets.GITEE_URL }}
         run: npx tsx scripts/processGDCJ.ts
 
-      - name: Commit and push changes
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          # 设置时区为北京时间
-          export TZ="Asia/Shanghai"
-          # 获取北京时区的日期
-          BEIJING_DATE=$(date '+%Y-%m-%d')
-          # 添加所有变化
-          git add data/
-          # 检查是否有变化
-          if git diff --staged --quiet; then
-            echo "No changes to commit."
-          else
-            # 获取当天已有的tag数量
-            EXISTING_TAGS=$(git tag -l "gdcj-train-detail-$BEIJING_DATE-*" | wc -l)
-            # 计算新tag的序号（现有数量+1）
-            TAG_NUMBER=$((EXISTING_TAGS + 1))
-            # 创建新tag名称
-            NEW_TAG="gdcj-train-detail-$BEIJING_DATE-$TAG_NUMBER"
-          
-            # commit和推送
-            git commit -m "Update data directory for $BEIJING_DATE (#$TAG_NUMBER)"
-            git push
-            echo "Created commit for $BEIJING_DATE"
-          fi
-
-      - name: Create daily tag
-        run: |
-          # 设置时区为北京时间
-          export TZ="Asia/Shanghai"
-          # 获取北京时区的日期
-          BEIJING_DATE=$(date '+%Y-%m-%d')
-          # 获取当天已有的tag数量
-          EXISTING_TAGS=$(git tag -l "gdcj-train-detail-$BEIJING_DATE-*" | wc -l)
-          # 计算新tag的序号（现有数量+1）
-          TAG_NUMBER=$((EXISTING_TAGS + 1))
-          # 创建新tag名称
-          NEW_TAG="gdcj-train-detail-$BEIJING_DATE-$TAG_NUMBER"
-          
-          # 创建tag
-          git tag -a "$NEW_TAG" -m "Daily update for $BEIJING_DATE (#$TAG_NUMBER)"
-          git push origin "$NEW_TAG"
-          echo "Created tag: $NEW_TAG"
+#      - name: Commit and push changes
+#        run: |
+#          git config --local user.email "action@github.com"
+#          git config --local user.name "GitHub Action"
+#          # 设置时区为北京时间
+#          export TZ="Asia/Shanghai"
+#          # 获取北京时区的日期
+#          BEIJING_DATE=$(date '+%Y-%m-%d')
+#          # 添加所有变化
+#          git add data/
+#          # 检查是否有变化
+#          if git diff --staged --quiet; then
+#            echo "No changes to commit."
+#          else
+#            # 获取当天已有的tag数量
+#            EXISTING_TAGS=$(git tag -l "gdcj-train-detail-$BEIJING_DATE-*" | wc -l)
+#            # 计算新tag的序号（现有数量+1）
+#            TAG_NUMBER=$((EXISTING_TAGS + 1))
+#            # 创建新tag名称
+#            NEW_TAG="gdcj-train-detail-$BEIJING_DATE-$TAG_NUMBER"
+#
+#            # commit和推送
+#            git commit -m "Update data directory for $BEIJING_DATE (#$TAG_NUMBER)"
+#            git push
+#            echo "Created commit for $BEIJING_DATE"
+#          fi
+#
+#      - name: Create daily tag
+#        run: |
+#          # 设置时区为北京时间
+#          export TZ="Asia/Shanghai"
+#          # 获取北京时区的日期
+#          BEIJING_DATE=$(date '+%Y-%m-%d')
+#          # 获取当天已有的tag数量
+#          EXISTING_TAGS=$(git tag -l "gdcj-train-detail-$BEIJING_DATE-*" | wc -l)
+#          # 计算新tag的序号（现有数量+1）
+#          TAG_NUMBER=$((EXISTING_TAGS + 1))
+#          # 创建新tag名称
+#          NEW_TAG="gdcj-train-detail-$BEIJING_DATE-$TAG_NUMBER"
+#
+#          # 创建tag
+#          git tag -a "$NEW_TAG" -m "Daily update for $BEIJING_DATE (#$TAG_NUMBER)"
+#          git push origin "$NEW_TAG"
+#          echo "Created tag: $NEW_TAG"

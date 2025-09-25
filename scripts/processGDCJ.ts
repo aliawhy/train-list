@@ -147,12 +147,12 @@ async function updateRealTimeData() {
     const resulDays = Object.keys(result);
     console.debug(`查询完毕，共${resulDays.length}天的数据。 ${resulDays.join(",")}`)
 
-    encodeAndSave(__dirname, result)
+    await encodeAndSave(__dirname, result)
 }
 
 
 // 主函数
-export const isTest = false
+export const isTest = false // 测试时 只下载少量车
 
 async function main() {
     try {

@@ -186,3 +186,34 @@ export function getBeijingTimestamp(trainDay: string, trainTime: string): number
 
     return dateObj.getTime();
 }
+
+/**
+ * 获取北京时区的日期时间字符串
+ * @returns 北京时区的日期时间字符串（YYYYMMDDHHmmss格式）
+ */
+export const getBeijingDateTime = (): string => {
+    // 获取北京时区的当前日期时间
+    const getBeijingDateTime = (): Date => {
+        const now = new Date();
+        // 北京时区是UTC+8
+        const beijingOffset = 8 * 60;
+        const localOffset = now.getTimezoneOffset();
+        const totalOffset = beijingOffset + localOffset;
+        return new Date(now.getTime() + totalOffset * 60 * 1000);
+    };
+
+    // 格式化日期时间为 YYYYMMDDHHmmss
+    const formatDateTime = (date: Date): string => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${year}${month}${day}${hours}${minutes}${seconds}`;
+    };
+
+    // 获取北京时区的当前时间并格式化
+    const beijingDateTime = getBeijingDateTime();
+    return formatDateTime(beijingDateTime);
+};
