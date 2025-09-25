@@ -5,7 +5,8 @@
   "scripts": {},
   "dependencies": {
     "@mongodb-js/zstd": "^2.0.1",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "simple-git": "^3.28.0"
   },
   "devDependencies": {
     "@types/node": "^16.0.0",
