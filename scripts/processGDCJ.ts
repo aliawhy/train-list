@@ -30,6 +30,10 @@ export function getQueryStationPairs(trainDay: string) {
     const xtn = 'NUQ'; // 新塘南
     const szjc = 'SCA'; // 深圳机场
 
+    const feixia = 'FEA'; // 飞霞
+    const pazhou = 'PTQ'; // 琶洲
+    const huizhoubei = 'HUA'; // 惠州北
+
     // 构造所有站点对的数组
     const stationPairs = [
         {trainDay: trainDay, fromStationCode: zq, toStationCode: fsx},    // [肇庆、佛山西]
@@ -39,6 +43,21 @@ export function getQueryStationPairs(trainDay: string) {
         {trainDay: trainDay, fromStationCode: qc, toStationCode: hd},     // [清城、花都]
         {trainDay: trainDay, fromStationCode: hd, toStationCode: byjcb},  // [花都、白云机场北]
         {trainDay: trainDay, fromStationCode: xtn, toStationCode: szjc},  // [新塘南、深圳机场]
+
+
+        {trainDay: trainDay, fromStationCode: hd, toStationCode: pazhou},  // [花都、琶洲]
+        {trainDay: trainDay, fromStationCode: hd, toStationCode: py},  // [花都、番禺]
+        {trainDay: trainDay, fromStationCode: hd, toStationCode: fsx},  // [花都、佛山西]
+        {trainDay: trainDay, fromStationCode: hd, toStationCode: zq},  // [花都、肇庆]
+        {trainDay: trainDay, fromStationCode: hd, toStationCode: dgx},  // [花都、东莞西]
+        {trainDay: trainDay, fromStationCode: hd, toStationCode: huizhoubei},  // [花都、惠州北]
+
+        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: py},  // [琶洲、番禺]
+        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: fsx},  // [琶洲、佛山西]
+        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: zq},  // [琶洲、肇庆]
+        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: dgx},  // [琶洲、东莞西]
+        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: huizhoubei},  // [琶洲、惠州北]
+        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: feixia},  // [琶洲、飞霞]
     ];
 
     // 自动增加反向

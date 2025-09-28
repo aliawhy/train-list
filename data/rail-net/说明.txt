@@ -8,9 +8,9 @@ BuildRailNetRawGz.ts生成
 tag结构为 rail-net-数字
 
 如：
-git tag -a "rail-net-1" -m "rail-net-1"
-git push origin "rail-net-1"
+git tag -a "gdcj-train-detail-2025-09-26-1" -m "gdcj-train-detail-2025-09-26-1"
+git push origin "gdcj-train-detail-2025-09-26-1"
 
 删除：
-git tag -d "rail-net-1"
-git push origin :refs/tags/"rail-net-1"
+git tag -d "gdcj-train-detail-2025-09-26-1"
+git push origin :refs/tags/"gdcj-train-detail-2025-09-26-1"
