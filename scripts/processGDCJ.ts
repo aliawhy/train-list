@@ -32,7 +32,7 @@ export function getQueryStationPairs(trainDay: string) {
 
     const feixia = 'FEA'; // 飞霞
     const pazhou = 'PTQ'; // 琶洲
-    const huizhoubei = 'HUA'; // 惠州北
+    const huizhoubei = 'KBA'; // 惠州北
 
     // 构造所有站点对的数组
     const stationPairs = [
