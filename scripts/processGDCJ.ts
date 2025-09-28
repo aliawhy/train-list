@@ -51,12 +51,15 @@ export function getQueryStationPairs(trainDay: string) {
         {trainDay: trainDay, fromStationCode: hd, toStationCode: zq},  // [花都、肇庆]
         {trainDay: trainDay, fromStationCode: hd, toStationCode: dgx},  // [花都、东莞西]
         {trainDay: trainDay, fromStationCode: hd, toStationCode: huizhoubei},  // [花都、惠州北]
+        {trainDay: trainDay, fromStationCode: hd, toStationCode: xjk},  // [花都、小金口]
 
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: py},  // [琶洲、番禺]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: fsx},  // [琶洲、佛山西]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: zq},  // [琶洲、肇庆]
+        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: gzlhs},  // [琶洲、广州莲花山]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: dgx},  // [琶洲、东莞西]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: huizhoubei},  // [琶洲、惠州北]
+        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: xjk},  // [琶洲、小金口]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: feixia},  // [琶洲、飞霞]
     ];
 
