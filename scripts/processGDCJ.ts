@@ -39,6 +39,7 @@ export function getQueryStationPairs(trainDay: string) {
         {trainDay: trainDay, fromStationCode: zq, toStationCode: fsx},    // [肇庆、佛山西]
         {trainDay: trainDay, fromStationCode: fsx, toStationCode: py},    // [佛山西、番禺]
         {trainDay: trainDay, fromStationCode: py, toStationCode: gzlhs},  // [番禺、广州莲花山]
+        {trainDay: trainDay, fromStationCode: py, toStationCode: dgx},  // [番禺、东莞西]
         {trainDay: trainDay, fromStationCode: gzlhs, toStationCode: xjk},  // [广州莲花山、小金口]
         {trainDay: trainDay, fromStationCode: qc, toStationCode: hd},     // [清城、花都]
         {trainDay: trainDay, fromStationCode: hd, toStationCode: byjcb},  // [花都、白云机场北]
@@ -54,7 +55,8 @@ export function getQueryStationPairs(trainDay: string) {
         {trainDay: trainDay, fromStationCode: hd, toStationCode: xjk},  // [花都、小金口]
 
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: py},  // [琶洲、番禺]
-        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: fsx},  // [琶洲、佛山西]
+        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: fsx},  // [琶洲、佛山西]        
+        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: byjcb},  // [琶洲、白云机场北]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: zq},  // [琶洲、肇庆]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: gzlhs},  // [琶洲、广州莲花山]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: dgx},  // [琶洲、东莞西]
