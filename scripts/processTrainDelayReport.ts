@@ -38,6 +38,9 @@ export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: st
         await git.clone(process.env.GITEE_MINI_DATA_UPLOADER_URL, tempDir);
         console.debug(`${logTime()} Gitee 上传仓库克隆完成`);
 
+        await git.addConfig('user.email', 'action@github.com');
+        await git.addConfig('user.name', 'GitHub Action');
+
         // 切换到克隆的仓库目录
         const repoGit = simpleGit(tempDir);
 
@@ -232,6 +235,9 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
         // 切换到克隆的仓库目录
         const repoGit = simpleGit(tempDir);
+
+        await repoGit.addConfig('user.email', 'action@github.com');
+        await repoGit.addConfig('user.name', 'GitHub Action');
 
         // 获取所有分支
         const branchesResult = await repoGit.branch();
