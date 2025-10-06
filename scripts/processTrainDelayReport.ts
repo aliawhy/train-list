@@ -249,7 +249,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
         // 查找现有的下载分支 (修改：只查找以downloadType开头的分支)
         const existingDownloadBranches = allBranches.filter(branch =>
-            branch.indexOf(downloadType) === 0
+            branch.indexOf('remotes/origin/' + downloadType) === 0
         );
         console.debug(`${logTime()} 找到现有下载分支数量:${existingDownloadBranches.length}`);
 
