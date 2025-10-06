@@ -1,0 +1,50 @@
+name: TRAIN DELAY Runner
+
+on:
+  # 30分钟执行一次
+  schedule:
+    - cron: '*/30 * * * *'
+
+  # 允许手动触发
+  workflow_dispatch:
+
+  # 通过 repository_dispatch 事件接收 Gitee 的触发
+  repository_dispatch:
+    types: [ gitee-push-trigger ]
+
+# 并发控制：避免重复执行
+concurrency:
+  group: train-delay-runner
+  cancel-in-progress: true # 避免新触发的任务排队，新触发的任务不需要再执行， 我们脚本会执行比较久。 比如20分钟。 所以这期间有任何新触发，都不需要执行。 可能产生终止的时候 刚好有任务触发的问题吗
+
+jobs:
+  run-test:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run test script
+        env:
+          API_T: ${{ secrets.API_T }}
+          API_D: ${{ secrets.API_D }}
+          GITEE_URL: ${{ secrets.GITEE_URL }}
+          GITEE_MINI_DATA_UPLOADER_URL: ${{ secrets.GITEE_MINI_DATA_UPLOADER_URL }}
+          GITEE_MINI_DATA_DOWNLOADER_URL: ${{ secrets.GITEE_MINI_DATA_DOWNLOADER_URL }}
+        run: npx tsx scripts/processTrainDelayReport.ts

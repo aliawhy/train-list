@@ -1,3 +1,8 @@
+import {logTime} from "../log/LogUtils";
+import path from "path";
+import fs from "fs";
+import {TrainDelayParams} from "../../processTrainDelayReport";
+
 export function getDate(date, AddDayCount = 0) {
     if (!date) {
         date = new Date()
@@ -217,3 +222,39 @@ export const getBeijingDateTime = (): string => {
     const beijingDateTime = getBeijingDateTime();
     return formatDateTime(beijingDateTime);
 };
+
+
+/**
+ * 将时间戳转换为北京时间字符串
+ * @param timestamp 时间戳（毫秒）
+ * @param format 返回格式：'date' 返回年月日，'datetime' 返回年月日时分秒，'datetimeMs' 返回年月日时分秒毫秒
+ * @returns 北京时间字符串
+ */
+export function getBeijingTimeString(timestamp: number, format: 'date' | 'datetime' | 'datetimeMs' = 'date'): string {
+    // 将时间戳转换为UTC Date对象
+    const utcDate = new Date(timestamp);
+
+    // 转换为北京时间（UTC+8）
+    const beijingOffset = 8 * 60; // 8小时的分钟数
+    const beijingDate = new Date(utcDate.getTime() + beijingOffset * 60 * 1000);
+
+    const year = beijingDate.getUTCFullYear();
+    const month = String(beijingDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(beijingDate.getUTCDate()).padStart(2, '0');
+
+    if (format === 'date') {
+        return `${year}-${month}-${day}`;
+    }
+
+    const hours = String(beijingDate.getUTCHours()).padStart(2, '0');
+    const minutes = String(beijingDate.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(beijingDate.getUTCSeconds()).padStart(2, '0');
+
+    if (format === 'datetime') {
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    // datetimeMs 格式，包含毫秒
+    const milliseconds = String(beijingDate.getUTCMilliseconds()).padStart(3, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+}

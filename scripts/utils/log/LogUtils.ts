@@ -1,4 +1,6 @@
 // 全局计时统计系统
+import {getBeijingTimeString} from "../date/DateUtil";
+
 interface FunctionTimeLogInfo {
     callCount: number;      // 调用次数
     totalTime: number;      // 总耗时（毫秒）
@@ -79,8 +81,5 @@ export function setFunctionEnd(functionName: string): void {
  * 获取日志时间
  */
 export function logTime() {
-    const now = new Date();
-    // 北京时间是UTC+8，所以加上8小时的毫秒数
-    const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-    return `[${beijingTime.getHours()}:${beijingTime.getMinutes()}:${beijingTime.getSeconds()}.${beijingTime.getMilliseconds()}]`;
+    return `[${getBeijingTimeString(new Date().getTime(), 'datetimeMs')}]`;
 }
