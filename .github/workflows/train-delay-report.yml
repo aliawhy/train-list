@@ -2,8 +2,8 @@ name: TRAIN DELAY Runner
 
 on:
   # 30分钟执行一次
-  schedule:
-    - cron: '*/30 * * * *'
+  #  schedule:
+  #    - cron: '*/30 * * * *'
 
   # 允许手动触发
   workflow_dispatch:
@@ -15,7 +15,7 @@ on:
 # 并发控制：避免重复执行
 concurrency:
   group: train-delay-runner
-  cancel-in-progress: true # 避免新触发的任务排队，新触发的任务不需要再执行， 我们脚本会执行比较久。 比如20分钟。 所以这期间有任何新触发，都不需要执行。 可能产生终止的时候 刚好有任务触发的问题吗
+  cancel-in-progress: false # 不取消排队。
 
 jobs:
   run-test:
