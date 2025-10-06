@@ -374,7 +374,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
             needCreateNewRepo = true;
             needDeleteOldRepo = true;
             console.debug(`${logTime()} 有新数据场景 - 创建新分支并替换旧分支`);
-        } else if (oldReportDataLen > 0 && filteredOldDataLen === 0) {
+        } else if (oldReportDataLen > 0 && mergeReportDataLen === 0) {
             // 情况3：跨天无新数据
             needCreateNewRepo = true;
             needDeleteOldRepo = true; // 永远都只保留1个分支，避免分支膨胀
@@ -383,7 +383,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
             // 情况4：后续无新数据且已清空
             needCreateNewRepo = false;
             needDeleteOldRepo = false;
-            console.debug(`${logTime()} 无需更新场景 - 数据已为空且无新数据`);
+            console.debug(`${logTime()} 无需更新场景 - 没有新数据，且合并后数据不为空，说明合并后数据都来自旧数据`);
         }
 
         console.debug(`${logTime()} 操作决策 - 创建新分支:${needCreateNewRepo}, 删除旧分支: ${needDeleteOldRepo}`);
