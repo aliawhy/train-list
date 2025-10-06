@@ -1,19 +1,21 @@
 name: TRAIN DELAY Runner
 
 on:
+  # 30分钟执行一次 暂时不需要定时任务
+  #schedule:
+  #  - cron: '*/30 * * * *'
+
   # 允许手动触发
   workflow_dispatch:
 
-  # 通过 repository_dispatch 事件接收 指定 的触发
+  # 通过 repository_dispatch 事件接收 Gitee 的触发
   repository_dispatch:
     types: [ train-delay-report ]
 
-# 并发控制：实现节流
+# 并发控制：避免重复执行
 concurrency:
-  # group 的名字会动态计算，确保在同一个时间窗口内（例如2分钟）的所有触发都归于同一组
-  group: train-delay-runner-${{ steps.setup-time.outputs.time-window }}
-  # 如果有新的工作流在同一个时间窗口内被触发，则取消正在进行的。
-  cancel-in-progress: true
+  group: train-delay-runner
+  cancel-in-progress: false # 允许排队等待
 
 jobs:
   run-test:
@@ -28,39 +30,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-
-      # ==========================================================
-      # 步骤：计算时间窗口 (用于节流)
-      # ==========================================================
-      - name: Setup Time Window for Debouncing
-        id: setup-time
-        run: |
-          # --- 在这里轻松调整时间窗口 ---
-          # 设置为 2 表示2分钟窗口
-          TIME_WINDOW_MINUTES=2
-          # ---------------------------------
-
-          # 获取当前 UTC 时间的分钟数
-          current_minute=$(date -u +"%M")
-          
-          # 计算窗口的起始分钟（向下取整到最近的2的倍数）
-          # 例如，如果当前是 03 分，则窗口起始是 02 分
-          # 如果当前是 04 分，则窗口起始是 04 分
-          window_start_minute=$(( (current_minute / TIME_WINDOW_MINUTES) * TIME_WINDOW_MINUTES ))
-          
-          # 格式化分钟数，确保是两位数 (e.g., 2 -> 02)
-          printf -v window_start_minute_padded "%02d" $window_start_minute
-          
-          # 获取当前 UTC 时间的年月日时
-          current_hour_prefix=$(date -u +"%Y-%m-%d-%H")
-          
-          # 构建最终的时间窗口字符串，格式: YYYY-MM-DD-HH-MM
-          time_window_string="${current_hour_prefix}-${window_start_minute_padded}"
-          
-          echo "Calculated time window for concurrency group: ${time_window_string}"
-          
-          # 将结果设置为输出变量，供上方的 concurrency.group 使用
-          echo "time-window=${time_window_string}" >> $GITHUB_OUTPUT
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
