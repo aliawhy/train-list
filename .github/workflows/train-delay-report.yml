@@ -1,9 +1,9 @@
 name: TRAIN DELAY Runner
 
 on:
-  # 30分钟执行一次 暂时不需要定时任务
-  #schedule:
-  #  - cron: '*/30 * * * *'
+  schedule:
+    # 每天16点15分UTC运行（北京时间0点15分），凌晨执行一次，用于备份历史晚点信息。使得今天的晚点信息列表是重置的
+    - cron: '15 16 * * *'
 
   # 允许手动触发
   workflow_dispatch:

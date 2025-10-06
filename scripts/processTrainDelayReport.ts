@@ -204,6 +204,7 @@ export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: st
  * 2. 基于车次进行数据合并，使用Set高效去重（基于reportUuid）
  * 3. 对合并后的数据按上报时间戳排序
  * 4. 根据更新依据决定是否创建新分支和删除旧分支
+ * 5. (新增) 如果存在旧数据且旧数据中不包含当天数据，则将旧数据备份到新分支
  */
 export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
     validReports: { [key: string]: TrainDelayParams[] }): Promise<void> {
@@ -246,9 +247,9 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
         const downloadType = 'train-delay-download';
 
-        // 查找现有的下载分支
+        // 查找现有的下载分支 (修改：只查找以downloadType开头的分支)
         const existingDownloadBranches = allBranches.filter(branch =>
-            branch.includes(downloadType)
+            branch.indexOf(downloadType) === 0
         );
         console.debug(`${logTime()} 找到现有下载分支数量:${existingDownloadBranches.length}`);
 
@@ -321,6 +322,13 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
         console.debug(`${logTime()} 过滤后旧数据车次数量:${Object.keys(filteredOldData).length}`);
         console.debug(`${logTime()} 过滤后新数据车次数量:${Object.keys(filteredNewData).length}`);
+
+        // ===== 新增逻辑：跨天数据备份 =====
+        // 如果旧数据存在，但过滤后没有当天数据，说明发生了跨天，需要备份
+        if (Object.keys(oldReportData).length > 0 && Object.keys(filteredOldData).length === 0) {
+            await backupPreviousDayData(repoGit, tempDir, oldReportData, downloadType);
+        }
+        // ===============================
 
         // 处理流程2：基于车次进行数据合并，使用Set高效去重
         // 获取所有车次（过滤后的旧数据 + 过滤后的新数据）
@@ -459,6 +467,58 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
         throw error;
     }
 }
+
+/**
+ * 备份前一天的数据到新的分支
+ * @param repoGit Git操作实例
+ * @param tempDir 临时仓库目录
+ * @param dataToBackup 需要备份的原始数据
+ * @param downloadType 下载类型前缀
+ */
+async function backupPreviousDayData(
+    repoGit: simpleGit.SimpleGit,
+    tempDir: string,
+    dataToBackup: { [key: string]: TrainDelayParams[] },
+    downloadType: string
+): Promise<void> {
+    try {
+        // 计算昨天的北京日期字符串
+        const yesterdayTimestamp = Date.now() - 24 * 60 * 60 * 1000;
+        const yesterdayBeijingDate = getBeijingTimeString(yesterdayTimestamp, 'date');
+
+        const backupBranchName = `backup-${downloadType}-${yesterdayBeijingDate}`;
+        console.log(`${logTime()} 检测到跨天，开始备份前一天的数据到分支: ${backupBranchName}`);
+
+        // 创建并切换到备份分支
+        await repoGit.checkoutBranch(backupBranchName, MASTER_BRANCH);
+
+        // 确保备份目录存在
+        const backupDir = path.join(tempDir, 'backups');
+        if (!fs.existsSync(backupDir)) {
+            fs.mkdirSync(backupDir, {recursive: true});
+        }
+
+        // 将数据写入JSON文件（格式化，便于阅读）
+        const fileName = `${yesterdayBeijingDate}.json`;
+        const filePath = path.join(backupDir, fileName);
+        fs.writeFileSync(filePath, JSON.stringify(dataToBackup, null, 2), 'utf-8');
+        console.log(`${logTime()} 前一天数据已写入备份文件: ${filePath}`);
+
+        // 提交并推送备份分支
+        await repoGit.add(filePath);
+        await repoGit.commit(`Backup data for ${yesterdayBeijingDate}`);
+        await repoGit.push('origin', backupBranchName);
+        console.log(`${logTime()} 备份分支 ${backupBranchName} 已成功推送到远程仓库`);
+
+        // 切换回主分支，避免影响后续操作
+        await repoGit.checkout(MASTER_BRANCH);
+
+    } catch (error) {
+        console.error(`${logTime()} 备份前一天数据失败:`, error);
+        // 备份失败不应中断主流程，仅记录错误
+    }
+}
+
 
 /**
  * 主函数：处理完整的流程
