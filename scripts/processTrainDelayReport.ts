@@ -2,9 +2,10 @@ import path from "path";
 import fs from "fs";
 import {simpleGit} from 'simple-git';
 import {logTime} from "./utils/log/LogUtils";
-import {getBeijingTimeString, getBeijingDateTime} from "./utils/date/DateUtil";
-import {encode as msgpackEncoder, decode as msgpackDecoder} from 'msgpack-lite';
+import {getBeijingDateTime, getBeijingTimeString} from "./utils/date/DateUtil";
+import {decode as msgpackDecoder, encode as msgpackEncoder} from 'msgpack-lite';
 import {compress, decompress} from '@mongodb-js/zstd';
+import {BaseVersionFile} from "./utils/file/FileUtils";
 
 // 主分支名称常量
 const MASTER_BRANCH = 'master';
@@ -205,6 +206,7 @@ export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: st
  * 3. 对合并后的数据按上报时间戳排序
  * 4. 根据更新依据决定是否创建新分支和删除旧分支
  * 5. (新增) 如果存在旧数据且旧数据中不包含当天数据，则将旧数据备份到新分支
+ * 6. (新增) 如果创建了新的数据分支，则更新固定的版本分支
  */
 export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
     validReports: { [key: string]: TrainDelayParams[] }): Promise<void> {
@@ -231,6 +233,9 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
         // 克隆下载仓库
         const git = simpleGit();
+        if (!process.env.GITEE_MINI_DATA_DOWNLOADER_URL) {
+            throw new Error('GITEE_MINI_DATA_DOWNLOADER_URL environment variable is not set.');
+        }
         await git.clone(process.env.GITEE_MINI_DATA_DOWNLOADER_URL, tempDir);
         console.debug(`${logTime()} Gitee 下载仓库克隆完成`);
 
@@ -249,6 +254,8 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
         // 查找现有的下载分支 (修改：只查找以downloadType开头的分支)
         const existingDownloadBranches = allBranches.filter(branch =>
+            // 注意：simpleGit 操作的是本地完整仓库，其分支列表包含本地和远程引用。
+            // 必须使用 'remotes/origin/' 前缀来精确筛选远程分支，以区别于同名的本地分支。
             branch.indexOf('remotes/origin/' + downloadType) === 0
         );
         console.debug(`${logTime()} 找到现有下载分支数量:${existingDownloadBranches.length}`);
@@ -436,6 +443,11 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
             await repoGit.commit(`Update train delay data - ${new Date().toISOString()}`);
             await repoGit.push('origin', newBranchName);
             console.debug(`${logTime()} 新分支已推送到远程仓库`);
+
+            // ===== 新增逻辑：更新版本分支 =====
+            const newFileName = `${downloadType}/${fileName}`; // 用于拼接url地址，所以直接写/作为连接符
+            await updateVersionBranch(repoGit, tempDir, downloadType, newBranchName, newFileName);
+            // ===============================
         }
 
         if (needDeleteOldRepo) {
@@ -486,14 +498,14 @@ async function backupPreviousDayData(
         const yesterdayTimestamp = Date.now() - 24 * 60 * 60 * 1000;
         const yesterdayBeijingDate = getBeijingTimeString(yesterdayTimestamp, 'date');
 
-        const backupBranchName = `backup-${downloadType}-${yesterdayBeijingDate}`;
+        const backupBranchName = `backup_${downloadType}_${yesterdayBeijingDate}`;
         console.log(`${logTime()} 检测到跨天，开始备份前一天的数据到分支: ${backupBranchName}`);
 
         // 创建并切换到备份分支
         await repoGit.checkoutBranch(backupBranchName, MASTER_BRANCH);
 
         // 确保备份目录存在
-        const backupDir = path.join(tempDir, 'backups');
+        const backupDir = path.join(tempDir, 'backup');
         if (!fs.existsSync(backupDir)) {
             fs.mkdirSync(backupDir, {recursive: true});
         }
@@ -521,22 +533,70 @@ async function backupPreviousDayData(
 
 
 /**
- * 主函数：处理完整的流程
+ * 更新版本分支，写入最新的数据分支信息
+ * @param repoGit Git实例
+ * @param tempDir 仓库临时目录
+ * @param downloadType 下载类型
+ * @param newBranchName 新创建的数据分支名
+ * @param newFileName 新创建的数据压缩文件相对路径
  */
-export async function main(): Promise<void> {
+async function updateVersionBranch(
+    repoGit: simpleGit.SimpleGit,
+    tempDir: string,
+    downloadType: string,
+    newBranchName: string,
+    newFileName: string
+): Promise<void> {
+    const versionBranchName = `version_${downloadType}`;
+    const fileNameVersion = `${downloadType}.version.json`;
+    const versionDir = path.join(tempDir, 'version');
+    const filePathVer = path.join(versionDir, fileNameVersion);
+
+    console.debug(`${logTime()} 开始更新版本分支:${versionBranchName}`);
+
     try {
-        console.log(`${logTime()} 开始执行完整的数据处理流程`);
+        // 检查版本分支是否已存在于远程
+        const remoteBranches = await repoGit.branch(['-r']);
+        const versionBranchExists = remoteBranches.all.includes(`origin/${versionBranchName}`);
 
-        // 第一步：处理上传的数据
-        const validReports = await scanTrainDelayReportFromUploaderRepo();
+        if (versionBranchExists) {
+            // 如果分支存在，检出它
+            console.debug(`${logTime()} 版本分支${versionBranchName} 已存在，检出该分支`);
+            await repoGit.checkout(versionBranchName);
+        } else {
+            // 如果分支不存在，从主分支创建它
+            console.debug(`${logTime()} 版本分支${versionBranchName} 不存在，从主分支创建`);
+            await repoGit.checkoutBranch(versionBranchName, MASTER_BRANCH);
+        }
 
-        // 第二步：上传处理后的数据（无论是否有数据都要执行）
-        await mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(validReports);
+        // 确保版本目录存在
+        if (!fs.existsSync(versionDir)) {
+            fs.mkdirSync(versionDir, {recursive: true});
+        }
 
-        console.log(`${logTime()} 完整的数据处理流程执行完成`);
+        // 版本文件内容
+        const versionData = {
+            _version: newBranchName,
+            _fileName: newFileName,
+        } as BaseVersionFile;
+
+        // 写入版本文件
+        fs.writeFileSync(filePathVer, JSON.stringify(versionData, null, 2));
+        console.debug(`${logTime()} 数据保存：版本文件写入完毕，文件名=${fileNameVersion}, 路径=${filePathVer}`);
+
+        // 提交并推送版本分支
+        await repoGit.add(filePathVer);
+        const commitMessage = `Update version info to ${newBranchName} -${new Date().toISOString()}`;
+        await repoGit.commit(commitMessage);
+        await repoGit.push('origin', versionBranchName);
+        console.debug(`${logTime()} 版本分支${versionBranchName} 已更新并推送到远程`);
+
     } catch (error) {
-        console.error(`${logTime()} 主流程执行失败:`, error);
-        throw error;
+        console.error(`${logTime()} 更新版本分支失败:`, error);
+        // 不抛出错误，避免影响主流程
+    } finally {
+        // 切换回主分支，保持仓库状态干净
+        await repoGit.checkout(MASTER_BRANCH);
     }
 }
 
@@ -570,6 +630,28 @@ function isValidTrainDelayReport(data: any): data is TrainDelayParams {
         typeof data.position === 'string' &&
         typeof data.delayTimeRange === 'string';
 }
+
+
+/**
+ * 主函数：处理完整的流程
+ */
+export async function main(): Promise<void> {
+    try {
+        console.log(`${logTime()} 开始执行完整的数据处理流程`);
+
+        // 第一步：处理上传的数据
+        const validReports = await scanTrainDelayReportFromUploaderRepo();
+
+        // 第二步：上传处理后的数据（无论是否有数据都要执行）
+        await mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(validReports);
+
+        console.log(`${logTime()} 完整的数据处理流程执行完成`);
+    } catch (error) {
+        console.error(`${logTime()} 主流程执行失败:`, error);
+        throw error;
+    }
+}
+
 
 // 如果需要直接运行，可以取消注释
 main();
