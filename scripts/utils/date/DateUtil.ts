@@ -1,7 +1,7 @@
 import {logTime} from "../log/LogUtils";
 import path from "path";
 import fs from "fs";
-import {TrainDelayParams} from "../../processTrainDelayReport";
+import {TrainReportParams} from "../../processTrainDelayReport";
 
 export function getDate(date, AddDayCount = 0) {
     if (!date) {
@@ -223,14 +223,20 @@ export const getBeijingDateTime = (): string => {
     return formatDateTime(beijingDateTime);
 };
 
-
 /**
  * 将时间戳转换为北京时间字符串
  * @param timestamp 时间戳（毫秒）
- * @param format 返回格式：'date' 返回年月日，'datetime' 返回年月日时分秒，'datetimeMs' 返回年月日时分秒毫秒
+ * @param format 返回格式：
+ * - 'date': 返回年月日 (YYYY-MM-DD)
+ * - 'datetime': 返回年月日时分秒 (YYYY-MM-DD HH:mm:ss)
+ * - 'datetimeMs': 返回年月日时分秒毫秒 (YYYY-MM-DD HH:mm:ss.SSS)
+ * - 'time': 返回时分秒 (HH:mm:ss)
  * @returns 北京时间字符串
  */
-export function getBeijingTimeString(timestamp: number, format: 'date' | 'datetime' | 'datetimeMs' = 'date'): string {
+export function getBeijingTimeString(
+    timestamp: number,
+    format: 'date' | 'datetime' | 'datetimeMs' | 'time' = 'date'
+): string {
     // 将时间戳转换为UTC Date对象
     const utcDate = new Date(timestamp);
 
@@ -238,23 +244,32 @@ export function getBeijingTimeString(timestamp: number, format: 'date' | 'dateti
     const beijingOffset = 8 * 60; // 8小时的分钟数
     const beijingDate = new Date(utcDate.getTime() + beijingOffset * 60 * 1000);
 
+    // 提取各个时间部分
     const year = beijingDate.getUTCFullYear();
     const month = String(beijingDate.getUTCMonth() + 1).padStart(2, '0');
     const day = String(beijingDate.getUTCDate()).padStart(2, '0');
-
-    if (format === 'date') {
-        return `${year}-${month}-${day}`;
-    }
-
     const hours = String(beijingDate.getUTCHours()).padStart(2, '0');
     const minutes = String(beijingDate.getUTCMinutes()).padStart(2, '0');
     const seconds = String(beijingDate.getUTCSeconds()).padStart(2, '0');
-
-    if (format === 'datetime') {
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    }
-
-    // datetimeMs 格式，包含毫秒
     const milliseconds = String(beijingDate.getUTCMilliseconds()).padStart(3, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+
+    // 使用 switch 语句处理不同格式
+    switch (format) {
+        case 'date':
+            return `${year}-${month}-${day}`;
+
+        case 'time':
+            return `${hours}:${minutes}:${seconds}`;
+
+        case 'datetime':
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+        case 'datetimeMs':
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
+
+        default:
+            // 理论上不会执行到这里，因为 TypeScript 的类型检查
+            // 但作为良好的编程实践，提供一个默认返回值
+            return `${year}-${month}-${day}`;
+    }
 }

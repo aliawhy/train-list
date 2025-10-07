@@ -10,7 +10,7 @@ import {BaseVersionFile} from "./utils/file/FileUtils";
 // 主分支名称常量
 const MASTER_BRANCH = 'master';
 
-export interface TrainDelayParams {
+export interface TrainReportParams {
     userUuid: string;
     reportUuid: string; // 避免消费方多次消费导致重复数据
     reportTimestamp: number;
@@ -22,7 +22,7 @@ export interface TrainDelayParams {
 /**
  * 处理晚点信息上报分支
  */
-export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: string]: TrainDelayParams[] }> {
+export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: string]: TrainReportParams[] }> {
     try {
         console.debug(`${logTime()} 开始处理晚点信息上报分支`);
 
@@ -94,7 +94,7 @@ export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: st
 
         console.debug(`${logTime()} 筛选出符合条件的分支数量: ${targetBranches.length}`);
 
-        const validReports: { [key: string]: TrainDelayParams[] } = {};
+        const validReports: { [key: string]: TrainReportParams[] } = {};
         const branchesToDelete: string[] = [];
 
         // 第二步：处理筛选出的分支
@@ -209,7 +209,7 @@ export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: st
  * 6. (新增) 如果创建了新的数据分支，则更新固定的版本分支
  */
 export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
-    validReports: { [key: string]: TrainDelayParams[] }): Promise<void> {
+    validReports: { [key: string]: TrainReportParams[] }): Promise<void> {
     try {
         console.debug(`${logTime()} 开始上传处理后的数据到下载仓库`);
 
@@ -219,9 +219,9 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
         let needCreateNewRepo = false;
 
         // 数据变量初始化
-        let oldReportData: { [key: string]: TrainDelayParams[] } = {};
-        let newReportData: { [key: string]: TrainDelayParams[] } = {};
-        let mergeReportData: { [key: string]: TrainDelayParams[] } = {};
+        let oldReportData: { [key: string]: TrainReportParams[] } = {};
+        let newReportData: { [key: string]: TrainReportParams[] } = {};
+        let mergeReportData: { [key: string]: TrainReportParams[] } = {};
 
         // 创建临时目录用于克隆和操作
         const tempDir = path.join(process.cwd(), 'temp-train-delay-downloader-repo');
@@ -300,7 +300,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
          * @param reports 待过滤的数据
          * @returns 过滤后的当天数据
          */
-        const filterTodayReports = (reports: TrainDelayParams[]): TrainDelayParams[] => {
+        const filterTodayReports = (reports: TrainReportParams[]): TrainReportParams[] => {
             return reports.filter(report => {
                 const reportBeijingDate = getBeijingTimeString(report.reportTimestamp, 'date');
                 return reportBeijingDate === currentBeijingDate;
@@ -308,8 +308,8 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
         };
 
         // 处理流程1：先对新旧数据分别过滤北京时区当天的数据
-        const filteredOldData: { [key: string]: TrainDelayParams[] } = {};
-        const filteredNewData: { [key: string]: TrainDelayParams[] } = {};
+        const filteredOldData: { [key: string]: TrainReportParams[] } = {};
+        const filteredNewData: { [key: string]: TrainReportParams[] } = {};
 
         // 过滤旧数据的当天数据
         for (const [trainNumber, reports] of Object.entries(oldReportData)) {
@@ -350,7 +350,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
             // 使用Set进行高效去重
             const uuidSet = new Set<string>();
-            const uniqueReports: TrainDelayParams[] = [];
+            const uniqueReports: TrainReportParams[] = [];
 
             // 先处理旧数据
             for (const report of oldReports) {
@@ -490,7 +490,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 async function backupPreviousDayData(
     repoGit: simpleGit.SimpleGit,
     tempDir: string,
-    dataToBackup: { [key: string]: TrainDelayParams[] },
+    dataToBackup: { [key: string]: TrainReportParams[] },
     downloadType: string
 ): Promise<void> {
     try {
@@ -603,7 +603,7 @@ async function updateVersionBranch(
 /**
  * 校验晚点信息数据结构
  */
-function isValidTrainDelayReport(data: any): data is TrainDelayParams {
+function isValidTrainDelayReport(data: any): data is TrainReportParams {
     if (!data || typeof data !== 'object') {
         return false;
     }
