@@ -8,7 +8,8 @@ import {compress, decompress} from '@mongodb-js/zstd';
 import {BaseVersionFile} from "./utils/file/FileUtils";
 
 // 主分支名称常量
-const MASTER_BRANCH = 'master';
+const GITHUB_MASTER_BRANCH = 'main';
+const GITEE_MASTER_BRANCH = 'master';
 
 export interface TrainReportParams {
     userUuid: string;
@@ -21,6 +22,7 @@ export interface TrainReportParams {
 
 /**
  * 处理晚点信息上报分支
+ * 使用github仓库，小程序那边上传到github仓库更安全，github仓库可以限定token的访问仓库
  */
 export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: string]: TrainReportParams[] }> {
     try {
@@ -34,10 +36,10 @@ export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: st
             fs.rmSync(tempDir, {recursive: true, force: true});
         }
 
-        // 克隆 Gitee 仓库
+        // 克隆仓库
         const git = simpleGit();
-        await git.clone(process.env.GITEE_MINI_DATA_UPLOADER_URL, tempDir);
-        console.debug(`${logTime()} Gitee 上传仓库克隆完成`);
+        await git.clone(process.env.MY_GITHUB_MINI_DATA_UPLOADER_URL, tempDir);
+        console.debug(`${logTime()} github 上传仓库克隆完成`);
 
         await git.addConfig('user.email', 'action@github.com');
         await git.addConfig('user.name', 'GitHub Action');
@@ -145,14 +147,14 @@ export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: st
                 }
 
                 // 处理完当前分支后，切换回主分支，避免删除当前分支
-                await repoGit.checkout(MASTER_BRANCH);
-                console.debug(`${logTime()} 已切换回主分支: ${MASTER_BRANCH}`);
+                await repoGit.checkout(GITHUB_MASTER_BRANCH);
+                console.debug(`${logTime()} 已切换回主分支: ${GITHUB_MASTER_BRANCH}`);
 
             } catch (branchError) {
                 console.error(`${logTime()} 处理分支 ${branch} 时出错:`, branchError);
                 // 出错时也要确保切换回主分支
                 try {
-                    await repoGit.checkout(MASTER_BRANCH);
+                    await repoGit.checkout(GITHUB_MASTER_BRANCH);
                 } catch (checkoutError) {
                     console.error(`${logTime()} 切换回主分支失败:`, checkoutError);
                 }
@@ -164,7 +166,7 @@ export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: st
         for (const branch of branchesToDelete) {
             try {
                 // 确保在主分支上
-                await repoGit.checkout(MASTER_BRANCH);
+                await repoGit.checkout(GITHUB_MASTER_BRANCH);
 
                 // 删除本地分支
                 await repoGit.deleteLocalBranch(branch, true);
@@ -195,6 +197,7 @@ export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: st
 
 /**
  * 上传处理后的数据到下载仓库
+ * 使用gitee仓库， 国内用户访问gitee比较快
  * 更新依据：
  * 1. 初始无分支，无上报：会创建空{}分支
  * 2. 昨天有数据，今天无上报：第一次运行时会清空数据（创建空{}分支），后续运行会跳过更新
@@ -288,7 +291,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
             }
 
             // 切换回主分支
-            await repoGit.checkout(MASTER_BRANCH);
+            await repoGit.checkout(GITEE_MASTER_BRANCH);
         }
 
         // 获取当前北京日期字符串
@@ -415,7 +418,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
             const newBranchName = `${downloadType}_${getBeijingDateTime()}_${Date.now()}`;
             console.debug(`${logTime()} 创建新分支:${newBranchName}`);
 
-            await repoGit.checkoutBranch(newBranchName, MASTER_BRANCH);
+            await repoGit.checkoutBranch(newBranchName, GITEE_MASTER_BRANCH);
 
             // 确保目录存在
             const downloadDir = path.join(tempDir, downloadType);
@@ -502,7 +505,7 @@ async function backupPreviousDayData(
         console.log(`${logTime()} 检测到跨天，开始备份前一天的数据到分支: ${backupBranchName}`);
 
         // 创建并切换到备份分支
-        await repoGit.checkoutBranch(backupBranchName, MASTER_BRANCH);
+        await repoGit.checkoutBranch(backupBranchName, GITEE_MASTER_BRANCH);
 
         // 确保备份目录存在
         const backupDir = path.join(tempDir, 'backup');
@@ -523,7 +526,7 @@ async function backupPreviousDayData(
         console.log(`${logTime()} 备份分支 ${backupBranchName} 已成功推送到远程仓库`);
 
         // 切换回主分支，避免影响后续操作
-        await repoGit.checkout(MASTER_BRANCH);
+        await repoGit.checkout(GITEE_MASTER_BRANCH);
 
     } catch (error) {
         console.error(`${logTime()} 备份前一天数据失败:`, error);
@@ -566,7 +569,7 @@ async function updateVersionBranch(
         } else {
             // 如果分支不存在，从主分支创建它
             console.debug(`${logTime()} 版本分支${versionBranchName} 不存在，从主分支创建`);
-            await repoGit.checkoutBranch(versionBranchName, MASTER_BRANCH);
+            await repoGit.checkoutBranch(versionBranchName, GITEE_MASTER_BRANCH);
         }
 
         // 确保版本目录存在
@@ -596,7 +599,7 @@ async function updateVersionBranch(
         // 不抛出错误，避免影响主流程
     } finally {
         // 切换回主分支，保持仓库状态干净
-        await repoGit.checkout(MASTER_BRANCH);
+        await repoGit.checkout(GITEE_MASTER_BRANCH);
     }
 }
 
