@@ -29,6 +29,8 @@ export function getQueryStationPairs(trainDay: string) {
     const byjcb = 'BBA'; // 白云机场北
     const xtn = 'NUQ'; // 新塘南
     const szjc = 'SCA'; // 深圳机场
+    const cpd = 'FQQ'; // 常平东
+    const cjn = 'KKQ'; // 陈江南
 
     const feixia = 'FEA'; // 飞霞
     const pazhou = 'PTQ'; // 琶洲
@@ -63,6 +65,9 @@ export function getQueryStationPairs(trainDay: string) {
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: huizhoubei},  // [琶洲、惠州北]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: xjk},  // [琶洲、小金口]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: feixia},  // [琶洲、飞霞]
+
+        {trainDay: trainDay, fromStationCode: dgx, toStationCode: cpd},  // [东莞西、常平东]
+        {trainDay: trainDay, fromStationCode: cpd, toStationCode: cjn},  // [常平东、陈江南]
     ];
 
     // 自动增加反向
