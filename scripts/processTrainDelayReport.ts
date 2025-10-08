@@ -6,6 +6,7 @@ import {getBeijingDateTime, getBeijingTimeString} from "./utils/date/DateUtil";
 import {decode as msgpackDecoder, encode as msgpackEncoder} from 'msgpack-lite';
 import {compress, decompress} from '@mongodb-js/zstd';
 import {BaseVersionFile} from "./utils/file/FileUtils";
+import {allStationsSet} from "./utils/rail-net/railNetChecker";
 
 // 主分支名称常量
 const GITHUB_MASTER_BRANCH = 'main';
@@ -602,38 +603,91 @@ async function updateVersionBranch(
         await repoGit.checkout(GITEE_MASTER_BRANCH);
     }
 }
+const DELAY_TIME_RANGE_OPTIONS = [
+    '晚点 1-5 分钟',
+    '晚点 6-10 分钟',
+    '晚点 11-15 分钟',
+    '晚点 16-20 分钟',
+    '晚点 21-25 分钟',
+    '晚点 26-30 分钟',
+    '晚点 超过30分钟',
+    '正点'
+];
 
 /**
- * 校验晚点信息数据结构
+ * 校验列车晚点上报的数据是否合法
+ * @param data 待校验的数据
+ * @returns 如果数据是合法的 TrainReportParams 类型，则返回 true，否则返回 false
  */
 function isValidTrainDelayReport(data: any): data is TrainReportParams {
+    // 将必需字段数组提前定义，便于统一管理和维护
+    const requiredFields = ['userUuid', 'reportUuid', 'reportTimestamp', 'trainNumber', 'position', 'delayTimeRange'];
+
+    // 1. 基础类型和空值检查
     if (!data || typeof data !== 'object') {
         return false;
     }
 
-    // 检查字段数量
-    const keys = Object.keys(data);
-    if (keys.length !== 6) {
+    // 2. 检查字段数量，确保没有多余或缺失的字段，我们的json文件是直接被下载的，接口是公开的，如果有多余字段，导致隐藏字段攻击风险，比如隐藏字段使用非法文字
+    if (Object.keys(data).length !== requiredFields.length) {
         return false;
     }
 
-    // 检查必需字段
-    const requiredFields = ['userUuid', 'reportUuid', 'reportTimestamp', 'trainNumber', 'position', 'delayTimeRange'];
+    // 3. 检查必需字段是否存在
     for (const field of requiredFields) {
-        if (!keys.includes(field)) {
+        if (!(field in data)) { // 使用 in 操作符比 keys.includes 更高效
             return false;
         }
     }
 
-    // 校验字段类型
-    return typeof data.userUuid === 'string' &&
+    // 4. 校验字段类型
+    const isTypeValid = typeof data.userUuid === 'string' &&
         typeof data.reportUuid === 'string' &&
         typeof data.reportTimestamp === 'number' &&
         typeof data.trainNumber === 'string' &&
         typeof data.position === 'string' &&
         typeof data.delayTimeRange === 'string';
-}
 
+    if (!isTypeValid) {
+        return false;
+    }
+
+    // 5. 校验 UUID 字段长度 (允许未来格式的冗余)
+    // 标准UUID是32个字符，我们放宽到50个字符以应对未来变化。
+    const MAX_UUID_LENGTH = 50;
+    if (data.userUuid.length > MAX_UUID_LENGTH || data.reportUuid.length > MAX_UUID_LENGTH) {
+        return false;
+    }
+
+    // 6. 校验时间戳字段的合法数值范围
+    // new Date().getTime() 返回的是毫秒级时间戳。
+    // 范围：大于0，且小于2999年最后一刻的时间戳。
+    const maxTimestamp = new Date('2999-12-31T23:59:59.999Z').getTime();
+    if (data.reportTimestamp <= 0 || data.reportTimestamp > maxTimestamp) {
+        return false;
+    }
+
+    // 7. 确保 delayTimeRange 的值是预定义选项中的一个
+    if (!DELAY_TIME_RANGE_OPTIONS.includes(data.delayTimeRange)) {
+        return false;
+    }
+
+    // 8. 确保 position 是合法的
+    const isPositionValid = allStationsSet.has(data.position) || data.position === '列车上';
+    if (!isPositionValid) {
+        return false;
+    }
+
+    // 9. 确保车次是合法的：1位大写字母 + 3或4位数字
+    const trainNumberRegex = /^[A-Z]\d{3,4}$/;
+    const isTrainNumberValid = trainNumberRegex.test(data.trainNumber);
+    if (!isTrainNumberValid) {
+        return false;
+    }
+
+    // 10. 所有校验通过
+    return true;
+}
 
 /**
  * 主函数：处理完整的流程

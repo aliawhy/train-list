@@ -1,0 +1,1 @@
+line.ts直接从主工程复制，import {Line} from 改为本工程的Line定义位置即可
