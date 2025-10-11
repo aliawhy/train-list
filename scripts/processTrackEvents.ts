@@ -42,8 +42,8 @@ export async function scanOperationTrackingFromUploaderRepo(): Promise<Operation
         console.debug(`${logTime()} 获取到所有分支数量: ${allBranches.length}`);
 
         const currentTime = new Date().getTime();
-        const windowStart = currentTime - 1 * 60 * 60 * 1000; // 1小时前
-        const windowEnd = currentTime + 1 * 60 * 60 * 1000;   // 1小时后
+        const windowStart = currentTime - 3 * 60 * 60 * 1000; // x小时前
+        const windowEnd = currentTime + 3 * 60 * 60 * 1000;   // x小时后
 
         // 筛选出符合条件的分支
         const targetBranches = allBranches.filter(branch => {
