@@ -485,11 +485,11 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 }
 
 /**
- * 备份前一天的数据到新的分支
+ * 备份前一天的数据到固定的备份分支
  * @param repoGit Git操作实例
  * @param tempDir 临时仓库目录
  * @param dataToBackup 需要备份的原始数据
- * @param downloadType 下载类型前缀
+ * @param downloadType 下载类型前缀 (用于生成目录名)
  */
 async function backupPreviousDayData(
     repoGit: simpleGit.SimpleGit,
@@ -497,36 +497,88 @@ async function backupPreviousDayData(
     dataToBackup: { [key: string]: TrainReportParams[] },
     downloadType: string
 ): Promise<void> {
+    // 定义固定的备份分支名和目录名
+    const backupBranchName = `backup_${downloadType}_raw-data`;
+    const backupDirName = downloadType; // 例如: "train-delay"
+
     try {
         // 计算昨天的北京日期字符串
         const yesterdayTimestamp = Date.now() - 24 * 60 * 60 * 1000;
         const yesterdayBeijingDate = getBeijingTimeString(yesterdayTimestamp, 'date');
 
-        const backupBranchName = `backup_${downloadType}_${yesterdayBeijingDate}`;
         console.log(`${logTime()} 检测到跨天，开始备份前一天的数据到分支: ${backupBranchName}`);
 
-        // 创建并切换到备份分支
-        await repoGit.checkoutBranch(backupBranchName, GITEE_MASTER_BRANCH);
+        // 1. 切换到备份分支。如果本地分支不存在，它会自动从远程的同名分支创建。
+        //    如果远程也不存在，则基于 GITEE_MASTER_BRANCH 创建一个新分支。
+        try {
+            await repoGit.checkout(backupBranchName);
+        } catch (checkoutError) {
+            // 如果本地和远程都不存在该分支，则从主分支创建
+            console.log(`${logTime()} 备份分支 ${backupBranchName} 不存在，将从主分支 ${GITEE_MASTER_BRANCH} 创建。`);
+            await repoGit.checkoutBranch(backupBranchName, GITEE_MASTER_BRANCH);
+        }
 
-        // 确保备份目录存在
-        const backupDir = path.join(tempDir, 'backup');
+        // 2. 拉取远程备份分支的最新代码，以避免推送冲突
+        console.log(`${logTime()} 正在拉取远程分支 ${backupBranchName} 的最新更新...`);
+        try {
+            await repoGit.pull('origin', backupBranchName, { '--rebase': true });
+            console.log(`${logTime()} 远程分支 ${backupBranchName} 拉取成功。`);
+        } catch (pullError) {
+            console.error(`${logTime()} 拉取远程分支 ${backupBranchName} 失败，但继续执行。`, pullError);
+            // 如果是rebase冲突，可以选择放弃rebase，重置到拉取前的状态
+            await repoGit.rebase(['--abort']);
+        }
+
+        // 3. 确保备份目录存在 (例如: train-delay/)
+        const backupDir = path.join(tempDir, backupDirName);
         if (!fs.existsSync(backupDir)) {
             fs.mkdirSync(backupDir, {recursive: true});
         }
 
-        // 将数据写入JSON文件（格式化，便于阅读）
+        // 4. 将数据写入JSON文件
         const fileName = `${yesterdayBeijingDate}.json`;
         const filePath = path.join(backupDir, fileName);
         fs.writeFileSync(filePath, JSON.stringify(dataToBackup, null, 2), 'utf-8');
         console.log(`${logTime()} 前一天数据已写入备份文件: ${filePath}`);
 
-        // 提交并推送备份分支
+        // 5. 提交并推送备份分支 (增加重试逻辑)
         await repoGit.add(filePath);
-        await repoGit.commit(`Backup data for ${yesterdayBeijingDate}`);
-        await repoGit.push('origin', backupBranchName);
-        console.log(`${logTime()} 备份分支 ${backupBranchName} 已成功推送到远程仓库`);
+        const commitMessage = `Backup data for ${yesterdayBeijingDate}`;
+        await repoGit.commit(commitMessage);
 
-        // 切换回主分支，避免影响后续操作
+        console.log(`${logTime()} 开始推送备份分支 ${backupBranchName}...`);
+        let pushSucceeded = false;
+        let attempts = 0;
+        const maxAttempts = 2;
+
+        while (!pushSucceeded && attempts < maxAttempts) {
+            attempts++;
+            try {
+                await repoGit.push('origin', backupBranchName);
+                pushSucceeded = true;
+                console.log(`${logTime()} 备份分支 ${backupBranchName} 已成功推送到远程仓库`);
+            } catch (pushError) {
+                console.error(`${logTime()} 推送失败 (尝试 ${attempts}/${maxAttempts}):`, pushError);
+                if (attempts < maxAttempts) {
+                    console.log(`${logTime()} 推送失败，尝试先拉取最新代码后再次推送...`);
+                    try {
+                        // 在重试前再次拉取，确保与远程同步
+                        await repoGit.pull('origin', backupBranchName, { '--rebase': true });
+                    } catch (pullErrorOnRetry) {
+                        console.error(`${logTime()} 重试时拉取代码失败，放弃本次推送。`, pullErrorOnRetry);
+                        // 放弃rebase，避免后续操作在错误状态下进行
+                        await repoGit.rebase(['--abort']);
+                        break; // 退出重试循环
+                    }
+                }
+            }
+        }
+
+        if (!pushSucceeded) {
+            throw new Error(`推送分支 ${backupBranchName} 失败，已达到最大重试次数。`);
+        }
+
+        // 6. 切换回主分支，避免影响后续操作
         await repoGit.checkout(GITEE_MASTER_BRANCH);
 
     } catch (error) {
@@ -534,7 +586,6 @@ async function backupPreviousDayData(
         // 备份失败不应中断主流程，仅记录错误
     }
 }
-
 
 /**
  * 更新版本分支，写入最新的数据分支信息

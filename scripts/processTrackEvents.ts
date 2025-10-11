@@ -191,7 +191,18 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
             console.debug(`${logTime()} 已从主分支创建新的备份分支: ${BACKUP_BRANCH_NAME}`);
         }
 
-        // 3. 遍历分组，在当前分支上追加或创建文件
+        // 3. 在写入前，拉取远程分支的最新代码，以避免冲突
+        console.debug(`${logTime()} 正在拉取远程分支 ${BACKUP_BRANCH_NAME} 的最新代码...`);
+        try {
+            await repoGit.pull('origin', BACKUP_BRANCH_NAME, { '--rebase': true });
+            console.debug(`${logTime()} 远程分支 ${BACKUP_BRANCH_NAME} 拉取成功。`);
+        } catch (pullError) {
+            console.error(`${logTime()} 拉取远程分支 ${BACKUP_BRANCH_NAME} 失败，但继续执行。`, pullError);
+            // 如果是rebase冲突，可以选择放弃rebase，重置到拉取前的状态
+            await repoGit.rebase(['--abort']);
+        }
+
+        // 4. 遍历分组，在当前分支上追加或创建文件
         for (const [groupKey, newReports] of Object.entries(groupedReports)) {
             const [eventType, dateStr] = groupKey.split('_');
             const uploadType = `track-${eventType}`;
@@ -230,7 +241,7 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
             fs.writeFileSync(filePath, JSON.stringify(mergedReports, null, 2));
         }
 
-        // 4. 提交所有更改并推送到备份分支
+        // 5. 提交所有更改并推送到备份分支
         console.debug(`${logTime()} 开始提交并推送所有更改到 ${BACKUP_BRANCH_NAME}`);
         await repoGit.add('.'); // 添加所有更改
         const commitMessage = `chore: backup raw tracking data - ${new Date().toISOString()}`;
@@ -238,8 +249,33 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
         const status = await repoGit.status();
         if (!status.isClean()) {
             await repoGit.commit(commitMessage);
-            await repoGit.push('origin', BACKUP_BRANCH_NAME);
-            console.debug(`${logTime()} 备份分支 ${BACKUP_BRANCH_NAME} 已更新并推送`);
+            // 增加推送重试逻辑
+            let pushSucceeded = false;
+            let attempts = 0;
+            const maxAttempts = 2;
+            while (!pushSucceeded && attempts < maxAttempts) {
+                attempts++;
+                try {
+                    await repoGit.push('origin', BACKUP_BRANCH_NAME);
+                    pushSucceeded = true;
+                    console.debug(`${logTime()} 备份分支 ${BACKUP_BRANCH_NAME} 已更新并推送`);
+                } catch (pushError) {
+                    console.error(`${logTime()} 推送失败 (尝试 ${attempts}/${maxAttempts}):`, pushError);
+                    if (attempts < maxAttempts) {
+                        console.debug(`${logTime()} 推送失败，尝试先拉取最新代码后再次推送...`);
+                        try {
+                            await repoGit.pull('origin', BACKUP_BRANCH_NAME, { '--rebase': true });
+                        } catch (pullErrorOnRetry) {
+                            console.error(`${logTime()} 重试时拉取代码失败，放弃本次推送。`, pullErrorOnRetry);
+                            await repoGit.rebase(['--abort']);
+                            break; // 退出重试循环
+                        }
+                    }
+                }
+            }
+            if (!pushSucceeded) {
+                throw new Error(`推送分支 ${BACKUP_BRANCH_NAME} 失败，已达到最大重试次数。`);
+            }
         } else {
             console.debug(`${logTime()} 没有新的文件变更，跳过提交和推送。`);
         }
@@ -256,7 +292,6 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
         throw error;
     }
 }
-
 
 /**
  * 主函数：处理完整的流程
