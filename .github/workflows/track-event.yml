@@ -1,0 +1,46 @@
+name: TRACT EVENT Runner
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+
+  # 允许手动触发
+  workflow_dispatch:
+
+# 并发控制：避免重复执行
+concurrency:
+  group: track-event-runner
+  cancel-in-progress: false # 允许排队等待
+
+jobs:
+  run-test:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run test script
+        env:
+          API_T: ${{ secrets.API_T }}
+          API_D: ${{ secrets.API_D }}
+          GITEE_URL: ${{ secrets.GITEE_URL }}
+          GITEE_MINI_DATA_UPLOADER_URL: ${{ secrets.GITEE_MINI_DATA_UPLOADER_URL }}
+          GITEE_MINI_DATA_DOWNLOADER_URL: ${{ secrets.GITEE_MINI_DATA_DOWNLOADER_URL }}
+          MY_GITHUB_MINI_DATA_UPLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_UPLOADER_URL }}
+        run: npx tsx scripts/processTrackEvents.ts
