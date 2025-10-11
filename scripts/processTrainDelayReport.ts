@@ -429,6 +429,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
                 tempDir,
                 GITEE_MASTER_BRANCH,
                 newBranchName,
+                false, // 合并上报数据，到下载新分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
                 filePathInRepo,
                 fileContent,
                 `Update train delay data - ${new Date().toISOString()}`,
@@ -487,12 +488,12 @@ async function backupPreviousDayData(
         const fileName = `${yesterdayBeijingDate}.json`;
         const filePathInRepo = `${backupDirName}/${fileName}`;
 
-        // 使用公共函数安全地写入备份分支，该函数会处理分支的删除和重建
         await safeWriteToBranch(
             repoGit,
             tempDir,
             GITEE_MASTER_BRANCH,
             backupBranchName,
+            true, // 每日备份前一天的流程 需要备份历史文件，因为我们把所有文件放到一个分支里了
             filePathInRepo,
             fileContent,
             `Backup data for ${yesterdayBeijingDate}`,
@@ -548,6 +549,7 @@ async function updateVersionBranch(
             tempDir,
             GITEE_MASTER_BRANCH,
             versionBranchName,
+            false, // 创建新下载版本分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
             filePathInRepo,
             fileContent,
             commitMessage,

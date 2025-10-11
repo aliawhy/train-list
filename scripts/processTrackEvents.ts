@@ -160,7 +160,7 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
 
         const tempDir = path.join(process.cwd(), 'temp-track-downloader-repo');
         if (fs.existsSync(tempDir)) {
-            fs.rmSync(tempDir, { recursive: true, force: true });
+            fs.rmSync(tempDir, {recursive: true, force: true});
         }
 
         const git = simpleGit();
@@ -190,6 +190,7 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
                 tempDir,
                 GITEE_MASTER_BRANCH,
                 branchName,
+                true, // 更新埋点数据，需要备份历史文件， 因为我们是把每天的文件写到一个分支里，几个月左右 请手动提取一下，或者后续再优化
                 filePathInRepo,
                 '', // fileContent 在使用 contentProcessor 时被忽略，但必须传一个值
                 `chore: append raw tracking data for ${eventType} on${dateStr}`,
@@ -222,7 +223,7 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
         }
 
         // 清理临时目录
-        fs.rmSync(tempDir, { recursive: true, force: true });
+        fs.rmSync(tempDir, {recursive: true, force: true});
         console.debug(`${logTime()} 下载仓库临时目录已清理`);
 
         console.log(`${logTime()} 所有埋点数据已成功写入下载仓库的相应备份分支`);

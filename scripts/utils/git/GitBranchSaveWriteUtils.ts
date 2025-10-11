@@ -1,7 +1,7 @@
-import { logTime } from "../log/LogUtils";
+import {logTime} from "../log/LogUtils";
 import path from "path";
 import fs from "fs";
-import { SimpleGit } from 'simple-git';
+import {SimpleGit} from 'simple-git';
 
 /**
  * 本文件，将git仓库当做数据库进行使用
@@ -38,13 +38,13 @@ async function backupExistingBranch(
         // 1. 基于远程分支创建一个唯一的临时本地分支
         await repoGit.checkout(['-b', tempBackupBranchName, `origin/${branchName}`]);
         // 2. 此时工作区已包含远程分支的所有文件，直接复制到备份目录
-        fs.mkdirSync(backupTempDir, { recursive: true });
+        fs.mkdirSync(backupTempDir, {recursive: true});
         const items = fs.readdirSync(tempDir);
         for (const item of items) {
             if (item === '.git') continue;
             const srcPath = path.join(tempDir, item);
             const destPath = path.join(backupTempDir, item);
-            fs.cpSync(srcPath, destPath, { recursive: true });
+            fs.cpSync(srcPath, destPath, {recursive: true});
         }
         console.log(`${logTime()} 存量文件已成功备份到: ${backupTempDir}`);
     } catch (backupError) {
@@ -100,12 +100,14 @@ async function deleteBranches(
         try {
             await repoGit.push(['origin', '--delete', actualBranchName]);
             console.log(`${logTime()} 已删除远程分支: ${actualBranchName}`);
-        } catch (e) { /* 忽略删除失败，可能分支已不存在 */ }
+        } catch (e) { /* 忽略删除失败，可能分支已不存在 */
+        }
 
         try {
             await repoGit.deleteLocalBranch(actualBranchName, true); // 使用 -D 强制删除
             console.log(`${logTime()} 已删除本地分支: ${actualBranchName}`);
-        } catch (e) { /* 忽略删除失败 */ }
+        } catch (e) { /* 忽略删除失败 */
+        }
     }
 }
 
@@ -146,7 +148,7 @@ async function restoreBackup(
     for (const item of items) {
         const srcPath = path.join(backupTempDir, item);
         const destPath = path.join(tempDir, item);
-        fs.cpSync(srcPath, destPath, { recursive: true });
+        fs.cpSync(srcPath, destPath, {recursive: true});
     }
     console.log(`${logTime()} 存量文件恢复完成。`);
 }
@@ -164,7 +166,7 @@ function writeFileContent(
     const fullPath = path.join(tempDir, filePathInRepo);
     const dir = path.dirname(fullPath);
     if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+        fs.mkdirSync(dir, {recursive: true});
     }
 
     let finalContent: string | Buffer;
@@ -218,6 +220,7 @@ export async function safeWriteToBranch(
     tempDir: string,
     masterBranch: string,
     branchName: string,
+    needBackup: boolean,
     filePathInRepo: string,
     fileContent: string | Buffer,
     commitMessage: string,
@@ -240,17 +243,24 @@ export async function safeWriteToBranch(
 
             // --- 优化后的执行流程 ---
             // 1. 首先备份存量文件（如果远程存在的话），这一步必须在删除操作之前，以确保数据不丢失
-            await backupExistingBranch(repoGit, tempDir, branchName, backupTempDir, masterBranch);
+            if (needBackup) {
+                console.log(`${logTime()} 需要备份，开始执行备份流程...`);
+                await backupExistingBranch(repoGit, tempDir, branchName, backupTempDir, masterBranch);
+            } else {
+                console.log(`${logTime()} 跳过备份流程 (needBackup = false)。`);
+            }
 
-            // 2. 备份完成后，强制删除本地和远程分支，为后续操作扫清障碍
+            // 2. 强制删除要求删除的分支，为后续操作扫清障碍
             await deleteBranches(repoGit, branchesToDeleteBeforeWrite);
 
             // 3. 创建干净的孤儿分支
             await createOrphanBranch(repoGit, masterBranch, branchName);
 
             // 4. 恢复备份的文件
-            await restoreBackup(tempDir, backupTempDir);
-
+            if (needBackup) {
+                console.log(`${logTime()} 正在恢复备份的文件...`);
+                await restoreBackup(tempDir, backupTempDir);
+            }
             // 5. 写入新内容
             writeFileContent(tempDir, filePathInRepo, fileContent, contentProcessor);
 
@@ -272,7 +282,7 @@ export async function safeWriteToBranch(
             // 无论成功或失败，都清理本次尝试产生的临时备份目录
             if (fs.existsSync(backupTempDir)) {
                 try {
-                    fs.rmSync(backupTempDir, { recursive: true, force: true });
+                    fs.rmSync(backupTempDir, {recursive: true, force: true});
                     console.log(`${logTime()} [尝试${attempt}] 临时备份目录 ${backupTempDir} 已清理。`);
                 } catch (cleanupError) {
                     console.error(`${logTime()} [尝试${attempt}] 清理临时备份目录失败:`, cleanupError);
