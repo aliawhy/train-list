@@ -182,6 +182,10 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
         // 2. 检出或创建固定的数据备份分支
         const BACKUP_BRANCH_NAME = 'backup_track_raw-data';
         const branches = await repoGit.branch();
+
+        // 检查远程分支是否存在
+        const remoteBackupBranchExists = branches.all.includes(`remotes/origin/${BACKUP_BRANCH_NAME}`);
+
         if (branches.all.includes(BACKUP_BRANCH_NAME)) {
             await repoGit.checkout(BACKUP_BRANCH_NAME);
             console.debug(`${logTime()} 已切换到现有备份分支: ${BACKUP_BRANCH_NAME}`);
@@ -191,15 +195,19 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
             console.debug(`${logTime()} 已从主分支创建新的备份分支: ${BACKUP_BRANCH_NAME}`);
         }
 
-        // 3. 在写入前，拉取远程分支的最新代码，以避免冲突
-        console.debug(`${logTime()} 正在拉取远程分支 ${BACKUP_BRANCH_NAME} 的最新代码...`);
-        try {
-            await repoGit.pull('origin', BACKUP_BRANCH_NAME, { '--rebase': true });
-            console.debug(`${logTime()} 远程分支 ${BACKUP_BRANCH_NAME} 拉取成功。`);
-        } catch (pullError) {
-            console.error(`${logTime()} 拉取远程分支 ${BACKUP_BRANCH_NAME} 失败，但继续执行。`, pullError);
-            // 如果是rebase冲突，可以选择放弃rebase，重置到拉取前的状态
-            await repoGit.rebase(['--abort']);
+        // 3. 仅在远程分支存在时，才拉取最新代码以避免冲突
+        if (remoteBackupBranchExists) {
+            console.debug(`${logTime()} 远程分支 ${BACKUP_BRANCH_NAME} 存在，正在拉取最新代码...`);
+            try {
+                await repoGit.pull('origin', BACKUP_BRANCH_NAME, { '--rebase': true });
+                console.debug(`${logTime()} 远程分支 ${BACKUP_BRANCH_NAME} 拉取成功。`);
+            } catch (pullError) {
+                console.error(`${logTime()} 拉取远程分支 ${BACKUP_BRANCH_NAME} 失败，但继续执行。`, pullError);
+                // 如果是rebase冲突，可以选择放弃rebase，重置到拉取前的状态
+                await repoGit.rebase(['--abort']);
+            }
+        } else {
+            console.debug(`${logTime()} 远程分支 ${BACKUP_BRANCH_NAME} 不存在，跳过拉取。`);
         }
 
         // 4. 遍历分组，在当前分支上追加或创建文件
@@ -256,7 +264,12 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
             while (!pushSucceeded && attempts < maxAttempts) {
                 attempts++;
                 try {
-                    await repoGit.push('origin', BACKUP_BRANCH_NAME);
+                    // 首次推送新分支时，需要使用 --set-upstream-to
+                    if (attempts === 1 && !remoteBackupBranchExists) {
+                        await repoGit.push('origin', BACKUP_BRANCH_NAME, ['--set-upstream-to', `origin/${BACKUP_BRANCH_NAME}`]);
+                    } else {
+                        await repoGit.push('origin', BACKUP_BRANCH_NAME);
+                    }
                     pushSucceeded = true;
                     console.debug(`${logTime()} 备份分支 ${BACKUP_BRANCH_NAME} 已更新并推送`);
                 } catch (pushError) {
@@ -264,7 +277,10 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
                     if (attempts < maxAttempts) {
                         console.debug(`${logTime()} 推送失败，尝试先拉取最新代码后再次推送...`);
                         try {
-                            await repoGit.pull('origin', BACKUP_BRANCH_NAME, { '--rebase': true });
+                            // 只有在远程分支已存在时才拉取
+                            if (remoteBackupBranchExists) {
+                                await repoGit.pull('origin', BACKUP_BRANCH_NAME, { '--rebase': true });
+                            }
                         } catch (pullErrorOnRetry) {
                             console.error(`${logTime()} 重试时拉取代码失败，放弃本次推送。`, pullErrorOnRetry);
                             await repoGit.rebase(['--abort']);
