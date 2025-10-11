@@ -1,12 +1,13 @@
 import path from "path";
 import fs from "fs";
-import {simpleGit} from 'simple-git';
+import {SimpleGit, simpleGit} from 'simple-git';
 import {logTime} from "./utils/log/LogUtils";
 import {getBeijingDateTime, getBeijingTimeString} from "./utils/date/DateUtil";
 import {decode as msgpackDecoder, encode as msgpackEncoder} from 'msgpack-lite';
 import {compress, decompress} from '@mongodb-js/zstd';
 import {BaseVersionFile} from "./utils/file/FileUtils";
 import {allStationsSet} from "./utils/rail-net/railNetChecker";
+import {safeWriteToBranch} from "./utils/git/GitBranchSaveWriteUtils";
 
 // 主分支名称常量
 const GITHUB_MASTER_BRANCH = 'main';
@@ -219,12 +220,10 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
         // 标志变量初始化
         let hasOldRepo = false;
-        let needDeleteOldRepo = false;
         let needCreateNewRepo = false;
 
         // 数据变量初始化
         let oldReportData: { [key: string]: TrainReportParams[] } = {};
-        let newReportData: { [key: string]: TrainReportParams[] } = {};
         let mergeReportData: { [key: string]: TrainReportParams[] } = {};
 
         // 创建临时目录用于克隆和操作
@@ -392,80 +391,54 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
         if (!hasOldRepo) {
             // 情况1：初始化
             needCreateNewRepo = true;
-            needDeleteOldRepo = false;
             console.debug(`${logTime()} 初始化场景 - 首次运行，创建初始分支`);
         } else if (newReportDataLen > 0) {
             // 情况2：有新数据
             needCreateNewRepo = true;
-            needDeleteOldRepo = true;
             console.debug(`${logTime()} 有新数据场景 - 创建新分支并替换旧分支`);
         } else if (oldReportDataLen > 0 && mergeReportDataLen === 0) {
             // 情况3：跨天无新数据
             needCreateNewRepo = true;
-            needDeleteOldRepo = true; // 永远都只保留1个分支，避免分支膨胀
             console.debug(`${logTime()} 跨天清理场景 - 旧数据非当天数据，创建空分支清空数据`);
         } else {
             // 情况4：后续无新数据且已清空
             needCreateNewRepo = false;
-            needDeleteOldRepo = false;
             console.debug(`${logTime()} 无需更新场景 - 没有新数据，且合并后数据不为空，说明合并后数据都来自旧数据`);
         }
 
-        console.debug(`${logTime()} 操作决策 - 创建新分支:${needCreateNewRepo}, 删除旧分支: ${needDeleteOldRepo}`);
+        console.debug(`${logTime()} 操作决策 - 创建新分支:${needCreateNewRepo}`);
 
         // 执行操作
         if (needCreateNewRepo) {
-            // 创建新分支
-            const newBranchName = `${downloadType}_${getBeijingDateTime()}_${Date.now()}`;
-            console.debug(`${logTime()} 创建新分支:${newBranchName}`);
-
-            await repoGit.checkoutBranch(newBranchName, GITEE_MASTER_BRANCH);
-
-            // 确保目录存在
-            const downloadDir = path.join(tempDir, downloadType);
-            if (!fs.existsSync(downloadDir)) {
-                fs.mkdirSync(downloadDir, {recursive: true});
-            }
-
-            // 使用msgpack编码
+            // 准备要写入的数据
             const msgpackBuffer = msgpackEncoder(mergeReportData);
             console.debug(`${logTime()} 数据保存：msgpack编码完毕，大小: ${msgpackBuffer.length} bytes`);
-
-            // zstd压缩
-            let compressedData = await compress(msgpackBuffer, 19);
+            const compressedData = await compress(msgpackBuffer, 19);
             console.debug(`${logTime()} 数据保存：zstd压缩完毕，大小: ${compressedData.length} bytes`);
 
             const fileName = `${downloadType}.msgpack.zst`;
-            const filePath = path.join(downloadDir, fileName);
+            const fileContent = compressedData;
+            const filePathInRepo = `${downloadType}/${fileName}`;
 
-            // 写入压缩数据
-            fs.writeFileSync(filePath, compressedData);
-            console.debug(`${logTime()} 数据已写入文件:${filePath}`);
+            // 定义新分支名
+            const newBranchName = `${downloadType}_${getBeijingDateTime()}_${Date.now()}`;
 
-            // 提交并推送
-            await repoGit.add(filePath);
-            await repoGit.commit(`Update train delay data - ${new Date().toISOString()}`);
-            await repoGit.push('origin', newBranchName);
+            // 使用公共函数安全地写入新分支，该函数会处理旧分支的删除
+            await safeWriteToBranch(
+                repoGit,
+                tempDir,
+                GITEE_MASTER_BRANCH,
+                newBranchName,
+                filePathInRepo,
+                fileContent,
+                `Update train delay data - ${new Date().toISOString()}`,
+                existingDownloadBranches // 传入需要预先删除的旧分支列表
+            );
             console.debug(`${logTime()} 新分支已推送到远程仓库`);
 
             // ===== 新增逻辑：更新版本分支 =====
-            const newFileName = `${downloadType}/${fileName}`; // 用于拼接url地址，所以直接写/作为连接符
-            await updateVersionBranch(repoGit, tempDir, downloadType, newBranchName, newFileName);
+            await updateVersionBranch(repoGit, tempDir, downloadType, newBranchName, filePathInRepo);
             // ===============================
-        }
-
-        if (needDeleteOldRepo) {
-            // 删除旧的下载分支
-            for (const branch of existingDownloadBranches) {
-                try {
-                    const actualBranchName = branch.replace('remotes/origin/', '');
-                    await repoGit.deleteLocalBranch(actualBranchName, true);
-                    await repoGit.push(['origin', '--delete', actualBranchName]);
-                    console.debug(`${logTime()} 已删除旧分支:${actualBranchName}`);
-                } catch (deleteError) {
-                    console.error(`${logTime()} 删除旧分支${branch} 失败:`, deleteError);
-                }
-            }
         }
 
         // 清理临时目录
@@ -483,6 +456,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
         throw error;
     }
 }
+
 
 /**
  * 备份前一天的数据到固定的备份分支
@@ -508,93 +482,23 @@ async function backupPreviousDayData(
 
         console.log(`${logTime()} 检测到跨天，开始备份前一天的数据到分支: ${backupBranchName}`);
 
-        // 1. 获取所有分支信息，用于判断远程分支是否存在
-        const branches = await repoGit.branch();
-        const remoteBackupBranchExists = branches.all.includes(`remotes/origin/${backupBranchName}`);
-
-        // 2. 切换到备份分支。如果本地分支不存在，则从主分支创建。
-        try {
-            await repoGit.checkout(backupBranchName);
-            console.log(`${logTime()} 已切换到备份分支: ${backupBranchName}`);
-        } catch (checkoutError) {
-            // 如果本地分支不存在，则从主分支创建
-            console.log(`${logTime()} 本地备份分支 ${backupBranchName} 不存在，将从主分支 ${GITEE_MASTER_BRANCH} 创建。`);
-            await repoGit.checkoutBranch(backupBranchName, GITEE_MASTER_BRANCH);
-        }
-
-        // 3. 仅在远程分支存在时，才拉取远程备份分支的最新代码，以避免推送冲突
-        if (remoteBackupBranchExists) {
-            console.log(`${logTime()} 远程分支 ${backupBranchName} 存在，正在拉取最新更新...`);
-            try {
-                await repoGit.pull('origin', backupBranchName, { '--rebase': true });
-                console.log(`${logTime()} 远程分支 ${backupBranchName} 拉取成功。`);
-            } catch (pullError) {
-                console.error(`${logTime()} 拉取远程分支 ${backupBranchName} 失败，但继续执行。`, pullError);
-                // 如果是rebase冲突，可以选择放弃rebase，重置到拉取前的状态
-                await repoGit.rebase(['--abort']);
-            }
-        } else {
-            console.log(`${logTime()} 远程分支 ${backupBranchName} 不存在，跳过拉取。`);
-        }
-
-        // 4. 确保备份目录存在 (例如: train-delay/)
-        const backupDir = path.join(tempDir, backupDirName);
-        if (!fs.existsSync(backupDir)) {
-            fs.mkdirSync(backupDir, {recursive: true});
-        }
-
-        // 5. 将数据写入JSON文件
+        // 准备要写入的数据
+        const fileContent = JSON.stringify(dataToBackup, null, 2);
         const fileName = `${yesterdayBeijingDate}.json`;
-        const filePath = path.join(backupDir, fileName);
-        fs.writeFileSync(filePath, JSON.stringify(dataToBackup, null, 2), 'utf-8');
-        console.log(`${logTime()} 前一天数据已写入备份文件: ${filePath}`);
+        const filePathInRepo = `${backupDirName}/${fileName}`;
 
-        // 6. 提交并推送备份分支 (增加重试逻辑)
-        await repoGit.add(filePath);
-        const commitMessage = `Backup data for ${yesterdayBeijingDate}`;
-        await repoGit.commit(commitMessage);
-
-        console.log(`${logTime()} 开始推送备份分支 ${backupBranchName}...`);
-        let pushSucceeded = false;
-        let attempts = 0;
-        const maxAttempts = 2;
-
-        while (!pushSucceeded && attempts < maxAttempts) {
-            attempts++;
-            try {
-                // 如果是首次推送（远程分支不存在），需要设置上游分支
-                if (attempts === 1 && !remoteBackupBranchExists) {
-                    await repoGit.push('origin', backupBranchName, ['--set-upstream-to', `origin/${backupBranchName}`]);
-                } else {
-                    await repoGit.push('origin', backupBranchName);
-                }
-                pushSucceeded = true;
-                console.log(`${logTime()} 备份分支 ${backupBranchName} 已成功推送到远程仓库`);
-            } catch (pushError) {
-                console.error(`${logTime()} 推送失败 (尝试 ${attempts}/${maxAttempts}):`, pushError);
-                if (attempts < maxAttempts) {
-                    console.log(`${logTime()} 推送失败，尝试先拉取最新代码后再次推送...`);
-                    try {
-                        // 只有在远程分支已存在时才拉取
-                        if (remoteBackupBranchExists) {
-                            await repoGit.pull('origin', backupBranchName, { '--rebase': true });
-                        }
-                    } catch (pullErrorOnRetry) {
-                        console.error(`${logTime()} 重试时拉取代码失败，放弃本次推送。`, pullErrorOnRetry);
-                        // 放弃rebase，避免后续操作在错误状态下进行
-                        await repoGit.rebase(['--abort']);
-                        break; // 退出重试循环
-                    }
-                }
-            }
-        }
-
-        if (!pushSucceeded) {
-            throw new Error(`推送分支 ${backupBranchName} 失败，已达到最大重试次数。`);
-        }
-
-        // 7. 切换回主分支，避免影响后续操作
-        await repoGit.checkout(GITEE_MASTER_BRANCH);
+        // 使用公共函数安全地写入备份分支，该函数会处理分支的删除和重建
+        await safeWriteToBranch(
+            repoGit,
+            tempDir,
+            GITEE_MASTER_BRANCH,
+            backupBranchName,
+            filePathInRepo,
+            fileContent,
+            `Backup data for ${yesterdayBeijingDate}`,
+            [backupBranchName] // 传入自身分支名，以确保先删除再重建
+        );
+        console.log(`${logTime()} 备份分支 ${backupBranchName} 已成功更新`);
 
     } catch (error) {
         console.error(`${logTime()} 备份前一天数据失败:`, error);
@@ -604,6 +508,7 @@ async function backupPreviousDayData(
 
 /**
  * 更新版本分支，写入最新的数据分支信息
+ * 此函数现在使用 safeWriteToBranch 来确保原子性更新，避免合并冲突。
  * @param repoGit Git实例
  * @param tempDir 仓库临时目录
  * @param downloadType 下载类型
@@ -619,56 +524,44 @@ async function updateVersionBranch(
 ): Promise<void> {
     const versionBranchName = `version_${downloadType}`;
     const fileNameVersion = `${downloadType}.version.json`;
-    const versionDir = path.join(tempDir, 'version');
-    const filePathVer = path.join(versionDir, fileNameVersion);
+    // 文件在仓库中的路径，相对于仓库根目录
+    const filePathInRepo = `version/${fileNameVersion}`;
 
-    console.debug(`${logTime()} 开始更新版本分支:${versionBranchName}`);
+    console.debug(`${logTime()} 开始更新版本分支: ${versionBranchName}`);
 
     try {
-        // 检查版本分支是否已存在于远程
-        const remoteBranches = await repoGit.branch(['-r']);
-        const versionBranchExists = remoteBranches.all.includes(`origin/${versionBranchName}`);
-
-        if (versionBranchExists) {
-            // 如果分支存在，检出它
-            console.debug(`${logTime()} 版本分支${versionBranchName} 已存在，检出该分支`);
-            await repoGit.checkout(versionBranchName);
-        } else {
-            // 如果分支不存在，从主分支创建它
-            console.debug(`${logTime()} 版本分支${versionBranchName} 不存在，从主分支创建`);
-            await repoGit.checkoutBranch(versionBranchName, GITEE_MASTER_BRANCH);
-        }
-
-        // 确保版本目录存在
-        if (!fs.existsSync(versionDir)) {
-            fs.mkdirSync(versionDir, {recursive: true});
-        }
-
-        // 版本文件内容
+        // 准备要写入的版本文件内容
         const versionData = {
             _version: newBranchName,
             _fileName: newFileName,
         } as BaseVersionFile;
+        const fileContent = JSON.stringify(versionData, null, 2);
 
-        // 写入版本文件
-        fs.writeFileSync(filePathVer, JSON.stringify(versionData, null, 2));
-        console.debug(`${logTime()} 数据保存：版本文件写入完毕，文件名=${fileNameVersion}, 路径=${filePathVer}`);
+        // 准备提交信息
+        const commitMessage = `Update version info to ${newBranchName} - ${new Date().toISOString()}`;
 
-        // 提交并推送版本分支
-        await repoGit.add(filePathVer);
-        const commitMessage = `Update version info to ${newBranchName} -${new Date().toISOString()}`;
-        await repoGit.commit(commitMessage);
-        await repoGit.push('origin', versionBranchName);
-        console.debug(`${logTime()} 版本分支${versionBranchName} 已更新并推送到远程`);
+        console.debug(`${logTime()} 准备通过 safeWriteToBranch 更新版本文件: ${filePathInRepo}`);
+
+        // 调用 safeWriteToBranch 执行安全的写入操作
+        await safeWriteToBranch(
+            repoGit,
+            tempDir,
+            GITEE_MASTER_BRANCH,
+            versionBranchName,
+            filePathInRepo,
+            fileContent,
+            commitMessage,
+            [versionBranchName] // 传入自身分支名，以确保先删除再重建
+        );
+
+        console.debug(`${logTime()} 版本分支 ${versionBranchName} 已成功更新并推送到远程`);
 
     } catch (error) {
         console.error(`${logTime()} 更新版本分支失败:`, error);
         // 不抛出错误，避免影响主流程
-    } finally {
-        // 切换回主分支，保持仓库状态干净
-        await repoGit.checkout(GITEE_MASTER_BRANCH);
     }
 }
+
 const DELAY_TIME_RANGE_OPTIONS = [
     '晚点 1-5 分钟',
     '晚点 6-10 分钟',

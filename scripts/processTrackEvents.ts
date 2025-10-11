@@ -4,6 +4,7 @@ import {simpleGit} from 'simple-git';
 import {logTime} from "./utils/log/LogUtils";
 import {getBeijingTimeString} from "./utils/date/DateUtil";
 import {EventType, OperationTrackingParams} from "./utils/operation-tracking/OperationTrackingEntity";
+import {safeWriteToBranch} from "./utils/git/GitBranchSaveWriteUtils";
 
 const GITHUB_MASTER_BRANCH = 'main';
 const GITEE_MASTER_BRANCH = 'master';
@@ -128,17 +129,11 @@ export async function scanOperationTrackingFromUploaderRepo(): Promise<Operation
 
 
 /**
- * ╔════════════════════════════════════════════════════════════╗
- * ║                     2. 数据写入函数                           ║
- * ╚════════════════════════════════════════════════════════════╝
- *
  * 功能：将清洗后的埋点数据，按类型和日期追加到 Gitee 下载仓库的固定分支。
  * 1. 按 eventType 和北京日期对数据进行分组。
  * 2. 克隆 Gitee 下载仓库。
- * 3. 检出或创建固定的 `backup_track_raw-data` 分支。
- * 4. 遍历每个分组，读取对应文件的旧数据，追加新数据，然后写入 JSON 文件。
- * 5. 提交所有更改并推送到 `backup_track_raw-data` 分支。
- *    该分支作为运营人员使用的原始数据备份，永远包含最新的全量数据。
+ * 3. 遍历每个分组，使用通用的 safeWriteToBranch 函数安全地追加数据。
+ *    该函数会处理分支的重建、存量文件的恢复和最终的追加写入。
  */
 export async function mergeTrackingDataAndPushToDownloadRepo(
     reports: OperationTrackingParams<EventType>[]
@@ -161,11 +156,11 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
             }
             groupedReports[key].push(report);
         }
-        console.debug(`${logTime()} 数据分组完成，共 ${Object.keys(groupedReports).length} 个分组`);
+        console.debug(`${logTime()} 数据分组完成，共${Object.keys(groupedReports).length} 个分组`);
 
         const tempDir = path.join(process.cwd(), 'temp-track-downloader-repo');
         if (fs.existsSync(tempDir)) {
-            fs.rmSync(tempDir, {recursive: true, force: true});
+            fs.rmSync(tempDir, { recursive: true, force: true });
         }
 
         const git = simpleGit();
@@ -179,129 +174,58 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
         await repoGit.addConfig('user.email', 'action@github.com');
         await repoGit.addConfig('user.name', 'GitHub Action');
 
-        // 2. 检出或创建固定的数据备份分支
-        const BACKUP_BRANCH_NAME = 'backup_track_raw-data';
-        const branches = await repoGit.branch();
-
-        // 检查远程分支是否存在
-        const remoteBackupBranchExists = branches.all.includes(`remotes/origin/${BACKUP_BRANCH_NAME}`);
-
-        if (branches.all.includes(BACKUP_BRANCH_NAME)) {
-            await repoGit.checkout(BACKUP_BRANCH_NAME);
-            console.debug(`${logTime()} 已切换到现有备份分支: ${BACKUP_BRANCH_NAME}`);
-        } else {
-            // 从主分支创建新的备份分支
-            await repoGit.checkoutBranch(BACKUP_BRANCH_NAME, GITEE_MASTER_BRANCH);
-            console.debug(`${logTime()} 已从主分支创建新的备份分支: ${BACKUP_BRANCH_NAME}`);
-        }
-
-        // 3. 仅在远程分支存在时，才拉取最新代码以避免冲突
-        if (remoteBackupBranchExists) {
-            console.debug(`${logTime()} 远程分支 ${BACKUP_BRANCH_NAME} 存在，正在拉取最新代码...`);
-            try {
-                await repoGit.pull('origin', BACKUP_BRANCH_NAME, { '--rebase': true });
-                console.debug(`${logTime()} 远程分支 ${BACKUP_BRANCH_NAME} 拉取成功。`);
-            } catch (pullError) {
-                console.error(`${logTime()} 拉取远程分支 ${BACKUP_BRANCH_NAME} 失败，但继续执行。`, pullError);
-                // 如果是rebase冲突，可以选择放弃rebase，重置到拉取前的状态
-                await repoGit.rebase(['--abort']);
-            }
-        } else {
-            console.debug(`${logTime()} 远程分支 ${BACKUP_BRANCH_NAME} 不存在，跳过拉取。`);
-        }
-
-        // 4. 遍历分组，在当前分支上追加或创建文件
+        // 2. 遍历分组，为每个分组调用 safeWriteToBranch
         for (const [groupKey, newReports] of Object.entries(groupedReports)) {
             const [eventType, dateStr] = groupKey.split('_');
             const uploadType = `track-${eventType}`;
-            // 文件名格式: track-事件类型_北京时区日期.json
             const fileName = `${uploadType}_${dateStr}.json`;
-            const filePath = path.join(tempDir, uploadType, fileName);
+            const filePathInRepo = `${uploadType}/${fileName}`; // 仓库内相对路径
+            const branchName = `backup_track_raw-data_${eventType}`; // 分支名按事件类型隔离
 
-            console.debug(`${logTime()} 开始处理分组: ${groupKey}, 文件: ${filePath}`);
+            console.debug(`${logTime()} 开始处理分组:${groupKey}, 目标分支: ${branchName}, 文件:${filePathInRepo}`);
 
-            // 读取旧数据并追加
-            let existingReports: OperationTrackingParams<EventType>[] = [];
-            if (fs.existsSync(filePath)) {
-                try {
-                    const content = fs.readFileSync(filePath, 'utf-8');
-                    existingReports = JSON.parse(content);
-                    if (!Array.isArray(existingReports)) {
-                        console.warn(`${logTime()} 文件 ${filePath} 的现有内容不是数组格式，将被覆盖。`);
-                        existingReports = [];
-                    }
-                } catch (e) {
-                    console.error(`${logTime()} 读取或解析文件 ${filePath} 失败，将覆盖写入。`, e);
-                    existingReports = [];
-                }
-            }
-
-            const mergedReports = [...existingReports, ...newReports];
-            console.debug(`${logTime()} 文件 ${filePath} 数据合并完成，总数据量: ${mergedReports.length}`);
-
-            // 确保目录存在
-            const dir = path.dirname(filePath);
-            if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, {recursive: true});
-            }
-
-            // 写入文件
-            fs.writeFileSync(filePath, JSON.stringify(mergedReports, null, 2));
-        }
-
-        // 5. 提交所有更改并推送到备份分支
-        console.debug(`${logTime()} 开始提交并推送所有更改到 ${BACKUP_BRANCH_NAME}`);
-        await repoGit.add('.'); // 添加所有更改
-        const commitMessage = `chore: backup raw tracking data - ${new Date().toISOString()}`;
-        // 检查是否有需要提交的更改
-        const status = await repoGit.status();
-        if (!status.isClean()) {
-            await repoGit.commit(commitMessage);
-            // 增加推送重试逻辑
-            let pushSucceeded = false;
-            let attempts = 0;
-            const maxAttempts = 2;
-            while (!pushSucceeded && attempts < maxAttempts) {
-                attempts++;
-                try {
-                    // 首次推送新分支时，需要使用 --set-upstream-to
-                    if (attempts === 1 && !remoteBackupBranchExists) {
-                        await repoGit.push('origin', BACKUP_BRANCH_NAME, ['--set-upstream-to', `origin/${BACKUP_BRANCH_NAME}`]);
-                    } else {
-                        await repoGit.push('origin', BACKUP_BRANCH_NAME);
-                    }
-                    pushSucceeded = true;
-                    console.debug(`${logTime()} 备份分支 ${BACKUP_BRANCH_NAME} 已更新并推送`);
-                } catch (pushError) {
-                    console.error(`${logTime()} 推送失败 (尝试 ${attempts}/${maxAttempts}):`, pushError);
-                    if (attempts < maxAttempts) {
-                        console.debug(`${logTime()} 推送失败，尝试先拉取最新代码后再次推送...`);
+            // *** 核心改动：使用 safeWriteToBranch 并传入 contentProcessor ***
+            await safeWriteToBranch(
+                repoGit,
+                tempDir,
+                GITEE_MASTER_BRANCH,
+                branchName,
+                filePathInRepo,
+                '', // fileContent 在使用 contentProcessor 时被忽略，但必须传一个值
+                `chore: append raw tracking data for ${eventType} on${dateStr}`,
+                [branchName], // 删除并重建此分支
+                // *** 核心：定义内容处理逻辑 ***
+                (oldContent: string | null): string => {
+                    let existingReports: OperationTrackingParams<EventType>[] = [];
+                    if (oldContent) {
                         try {
-                            // 只有在远程分支已存在时才拉取
-                            if (remoteBackupBranchExists) {
-                                await repoGit.pull('origin', BACKUP_BRANCH_NAME, { '--rebase': true });
+                            const parsed = JSON.parse(oldContent);
+                            if (Array.isArray(parsed)) {
+                                existingReports = parsed;
+                            } else {
+                                console.warn(`${logTime()} 文件${filePathInRepo} 的现有内容不是数组格式，将被覆盖。`);
                             }
-                        } catch (pullErrorOnRetry) {
-                            console.error(`${logTime()} 重试时拉取代码失败，放弃本次推送。`, pullErrorOnRetry);
-                            await repoGit.rebase(['--abort']);
-                            break; // 退出重试循环
+                        } catch (e) {
+                            console.error(`${logTime()} 解析文件${filePathInRepo} 的旧内容失败，将覆盖写入。`, e);
                         }
                     }
+
+                    // 合并新旧数据
+                    const mergedReports = [...existingReports, ...newReports];
+                    console.debug(`${logTime()} 文件${filePathInRepo} 数据合并完成，旧数据: ${existingReports.length}, 新数据:${newReports.length}, 总计: ${mergedReports.length}`);
+
+                    // 返回合并后的新内容
+                    return JSON.stringify(mergedReports, null, 2);
                 }
-            }
-            if (!pushSucceeded) {
-                throw new Error(`推送分支 ${BACKUP_BRANCH_NAME} 失败，已达到最大重试次数。`);
-            }
-        } else {
-            console.debug(`${logTime()} 没有新的文件变更，跳过提交和推送。`);
+            );
+            console.log(`${logTime()} 分组${groupKey} 处理完毕，数据已安全追加到分支 ${branchName}`);
         }
 
-
         // 清理临时目录
-        fs.rmSync(tempDir, {recursive: true, force: true});
+        fs.rmSync(tempDir, { recursive: true, force: true });
         console.debug(`${logTime()} 下载仓库临时目录已清理`);
 
-        console.log(`${logTime()} 所有埋点数据已成功写入下载仓库的 ${BACKUP_BRANCH_NAME} 分支`);
+        console.log(`${logTime()} 所有埋点数据已成功写入下载仓库的相应备份分支`);
 
     } catch (error) {
         console.error(`${logTime()} 写入埋点数据失败:`, error);

@@ -1,7 +1,7 @@
 import {logTime} from "../log/LogUtils";
 import path from "path";
 import fs from "fs";
-import {simpleGit} from 'simple-git';
+import {SimpleGit, simpleGit} from 'simple-git';
 import * as os from 'os';
 
 /**
@@ -67,12 +67,3 @@ async function pushToRepoBranch(repoUrl: string, initCloneBranch: string, branch
         throw error;
     }
 }
-
-
-pushToRepoBranch(
-    'https://aliawhy:340a28a75b4d9bd0a6a9078dfd53ed00@gitee.com/aliawhy/mini-service-data-uploader.git',
-    'master',
-    'test-2025-1006',
-    'docs/readme.md',
-    '# 项目说明\n这是一个测试项目'
-);
