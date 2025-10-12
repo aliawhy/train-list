@@ -47,5 +47,6 @@ jobs:
           GITEE_URL: ${{ secrets.GITEE_URL }}
           GITEE_MINI_DATA_UPLOADER_URL: ${{ secrets.GITEE_MINI_DATA_UPLOADER_URL }}
           GITEE_MINI_DATA_DOWNLOADER_URL: ${{ secrets.GITEE_MINI_DATA_DOWNLOADER_URL }}
+          GITEE_MINI_DATABASE_URL: ${{ secrets.GITEE_MINI_DATABASE_URL }}
           MY_GITHUB_MINI_DATA_UPLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_UPLOADER_URL }}
         run: npx tsx scripts/processTrainDelayReport.ts

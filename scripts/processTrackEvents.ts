@@ -129,13 +129,12 @@ export async function scanOperationTrackingFromUploaderRepo(): Promise<Operation
 
 
 /**
- * 功能：将清洗后的埋点数据，按类型和日期追加到 Gitee 下载仓库的固定分支。
+ * 功能：将清洗后的埋点数据，按类型和日期追加到 Gitee 数据库的固定分支。
  * 1. 按 eventType 和北京日期对数据进行分组。
- * 2. 克隆 Gitee 下载仓库。
- * 3. 遍历每个分组，使用通用的 safeWriteToBranch 函数安全地追加数据。
+ * 2. 遍历每个分组，使用通用的 safeWriteToBranch 函数安全地追加数据。
  *    该函数会处理分支的重建、存量文件的恢复和最终的追加写入。
  */
-export async function mergeTrackingDataAndPushToDownloadRepo(
+export async function mergeTrackingDataAndPushToDatabaseRepo(
     reports: OperationTrackingParams<EventType>[]
 ): Promise<void> {
     if (reports.length === 0) {
@@ -158,16 +157,16 @@ export async function mergeTrackingDataAndPushToDownloadRepo(
         }
         console.debug(`${logTime()} 数据分组完成，共${Object.keys(groupedReports).length} 个分组`);
 
-        const tempDir = path.join(process.cwd(), 'temp-track-downloader-repo');
+        const tempDir = path.join(process.cwd(), 'temp-database-repo');
         if (fs.existsSync(tempDir)) {
             fs.rmSync(tempDir, {recursive: true, force: true});
         }
 
         const git = simpleGit();
-        if (!process.env.GITEE_MINI_DATA_DOWNLOADER_URL) {
-            throw new Error('GITEE_MINI_DATA_DOWNLOADER_URL environment variable is not set.');
+        if (!process.env.GITEE_MINI_DATABASE_URL) {
+            throw new Error('GITEE_MINI_DATABASE_URL environment variable is not set.');
         }
-        await git.clone(process.env.GITEE_MINI_DATA_DOWNLOADER_URL, tempDir);
+        await git.clone(process.env.GITEE_MINI_DATABASE_URL, tempDir);
         console.debug(`${logTime()} Gitee 下载仓库克隆完成`);
 
         const repoGit = simpleGit(tempDir);
@@ -245,7 +244,7 @@ export async function main(): Promise<void> {
         const validReports = await scanOperationTrackingFromUploaderRepo();
 
         // 第二步：上传处理后的数据（无论是否有数据都要执行）
-        await mergeTrackingDataAndPushToDownloadRepo(validReports);
+        await mergeTrackingDataAndPushToDatabaseRepo(validReports);
 
         console.log(`${logTime()} 完整的数据处理流程执行完成`);
     } catch (error) {

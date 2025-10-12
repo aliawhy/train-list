@@ -336,7 +336,8 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
         // ===== 新增逻辑：跨天数据备份 =====
         // 如果旧数据存在，但过滤后没有当天数据，说明发生了跨天，需要备份
         if (Object.keys(oldReportData).length > 0 && Object.keys(filteredOldData).length === 0) {
-            await backupPreviousDayData(repoGit, tempDir, oldReportData, downloadType);
+            // 调整：不再传递 repoGit 和 tempDir，备份函数将独立操作数据库仓库
+            await backupPreviousDayDataToDatabaseRepo(oldReportData, downloadType);
         }
         // ===============================
 
@@ -460,15 +461,14 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
 
 /**
- * 备份前一天的数据到固定的备份分支
- * @param repoGit Git操作实例
- * @param tempDir 临时仓库目录
+ * 备份前一天的数据到固定的备份分支，保存到数据仓库
+ * 备份数据不需要公开下载，因此调整仓库为 GITEE_MINI_DATABASE_URL 这个仓库是私密的。 这样数据安全。
+ * 注意：此函数会独立克隆和操作数据库仓库，不与下载仓库的目录或Git实例冲突。
+ *
  * @param dataToBackup 需要备份的原始数据
  * @param downloadType 下载类型前缀 (用于生成目录名)
  */
-async function backupPreviousDayData(
-    repoGit: simpleGit.SimpleGit,
-    tempDir: string,
+async function backupPreviousDayDataToDatabaseRepo(
     dataToBackup: { [key: string]: TrainReportParams[] },
     downloadType: string
 ): Promise<void> {
@@ -476,12 +476,35 @@ async function backupPreviousDayData(
     const backupBranchName = `backup_${downloadType}_raw-data`;
     const backupDirName = downloadType; // 例如: "train-delay"
 
+    // 为数据库仓库创建一个独立的临时目录，避免与下载仓库的临时目录冲突
+    const databaseRepoTempDir = path.join(process.cwd(), 'temp-database-repo');
+
     try {
         // 计算昨天的北京日期字符串
         const yesterdayTimestamp = Date.now() - 24 * 60 * 60 * 1000;
         const yesterdayBeijingDate = getBeijingTimeString(yesterdayTimestamp, 'date');
 
-        console.log(`${logTime()} 检测到跨天，开始备份前一天的数据到分支: ${backupBranchName}`);
+        console.log(`${logTime()} 检测到跨天，开始备份前一天(${yesterdayBeijingDate})的数据到私密数据库仓库`);
+
+        // 检查环境变量
+        if (!process.env.GITEE_MINI_DATABASE_URL) {
+            throw new Error('GITEE_MINI_DATABASE_URL environment variable is not set for backup.');
+        }
+
+        // 如果临时目录已存在，先删除
+        if (fs.existsSync(databaseRepoTempDir)) {
+            fs.rmSync(databaseRepoTempDir, {recursive: true, force: true});
+        }
+
+        // 克隆数据库仓库
+        const git = simpleGit();
+        await git.clone(process.env.GITEE_MINI_DATABASE_URL, databaseRepoTempDir);
+        console.debug(`${logTime()} 私密数据库仓库克隆完成`);
+
+        // 切换到克隆的数据库仓库目录
+        const dbRepoGit = simpleGit(databaseRepoTempDir);
+        await dbRepoGit.addConfig('user.email', 'action@github.com');
+        await dbRepoGit.addConfig('user.name', 'GitHub Action');
 
         // 准备要写入的数据
         const fileContent = JSON.stringify(dataToBackup, null, 2);
@@ -489,8 +512,8 @@ async function backupPreviousDayData(
         const filePathInRepo = `${backupDirName}/${fileName}`;
 
         await safeWriteToBranch(
-            repoGit,
-            tempDir,
+            dbRepoGit,
+            databaseRepoTempDir,
             GITEE_MASTER_BRANCH,
             backupBranchName,
             true, // 每日备份前一天的流程 需要备份历史文件，因为我们把所有文件放到一个分支里了
@@ -504,6 +527,12 @@ async function backupPreviousDayData(
     } catch (error) {
         console.error(`${logTime()} 备份前一天数据失败:`, error);
         // 备份失败不应中断主流程，仅记录错误
+    } finally {
+        // 确保无论如何都清理临时目录
+        if (fs.existsSync(databaseRepoTempDir)) {
+            fs.rmSync(databaseRepoTempDir, {recursive: true, force: true});
+            console.debug(`${logTime()} 数据库仓库临时目录已清理`);
+        }
     }
 }
 
