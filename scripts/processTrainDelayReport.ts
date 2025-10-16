@@ -425,17 +425,17 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
             const newBranchName = `${downloadType}_${getBeijingDateTime()}_${Date.now()}`;
 
             // 使用公共函数安全地写入新分支，该函数会处理旧分支的删除
-            await safeWriteToBranch(
-                repoGit,
-                tempDir,
-                GITEE_MASTER_BRANCH,
-                newBranchName,
-                false, // 合并上报数据，到下载新分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
-                filePathInRepo,
-                fileContent,
-                `Update train delay data - ${new Date().toISOString()}`,
-                existingDownloadBranches // 传入需要预先删除的旧分支列表
-            );
+            await safeWriteToBranch({
+                repoGit: repoGit,
+                tempDir: tempDir,
+                masterBranch: GITEE_MASTER_BRANCH,
+                branchName: newBranchName,
+                needBackup: false, // 合并上报数据，到下载新分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
+                filePathInRepo: filePathInRepo,
+                fileContent: fileContent,
+                commitMessage: `Update train delay data - ${getBeijingTimeString(Date.now(), 'datetimeMs')}`,
+                branchesToDeleteBeforeWrite: existingDownloadBranches // 传入需要预先删除的旧分支列表
+            });
             console.debug(`${logTime()} 新分支已推送到远程仓库`);
 
             // ===== 新增逻辑：更新版本分支 =====
@@ -511,17 +511,17 @@ async function backupPreviousDayDataToDatabaseRepo(
         const fileName = `${yesterdayBeijingDate}.json`;
         const filePathInRepo = `${backupDirName}/${fileName}`;
 
-        await safeWriteToBranch(
-            dbRepoGit,
-            databaseRepoTempDir,
-            GITEE_MASTER_BRANCH,
-            backupBranchName,
-            true, // 每日备份前一天的流程 需要备份历史文件，因为我们把所有文件放到一个分支里了
-            filePathInRepo,
-            fileContent,
-            `Backup data for ${yesterdayBeijingDate}`,
-            [backupBranchName] // 传入自身分支名，以确保先删除再重建
-        );
+        await safeWriteToBranch({
+            repoGit: dbRepoGit,
+            tempDir: databaseRepoTempDir,
+            masterBranch: GITEE_MASTER_BRANCH,
+            branchName: backupBranchName,
+            needBackup: true, // 每日备份前一天的流程 需要备份历史文件，因为我们把所有文件放到一个分支里了
+            filePathInRepo: filePathInRepo,
+            fileContent: fileContent,
+            commitMessage: `Backup data for ${yesterdayBeijingDate}`,
+            branchesToDeleteBeforeWrite: [backupBranchName] // 传入自身分支名，以确保先删除再重建
+        });
         console.log(`${logTime()} 备份分支 ${backupBranchName} 已成功更新`);
 
     } catch (error) {
@@ -573,17 +573,17 @@ async function updateVersionBranch(
         console.debug(`${logTime()} 准备通过 safeWriteToBranch 更新版本文件: ${filePathInRepo}`);
 
         // 调用 safeWriteToBranch 执行安全的写入操作
-        await safeWriteToBranch(
-            repoGit,
-            tempDir,
-            GITEE_MASTER_BRANCH,
-            versionBranchName,
-            false, // 创建新下载版本分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
-            filePathInRepo,
-            fileContent,
-            commitMessage,
-            [versionBranchName] // 传入自身分支名，以确保先删除再重建
-        );
+        await safeWriteToBranch({
+            repoGit: repoGit,
+            tempDir: tempDir,
+            masterBranch: GITEE_MASTER_BRANCH,
+            branchName: versionBranchName,
+            needBackup: false, // 创建新下载版本分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
+            filePathInRepo: filePathInRepo,
+            fileContent: fileContent,
+            commitMessage: commitMessage,
+            branchesToDeleteBeforeWrite: [versionBranchName] // 传入自身分支名，以确保先删除再重建
+        });
 
         console.debug(`${logTime()} 版本分支 ${versionBranchName} 已成功更新并推送到远程`);
 

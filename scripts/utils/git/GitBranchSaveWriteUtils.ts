@@ -210,23 +210,53 @@ async function commitAndPush(
 }
 
 
+// 定义一个接口来封装所有入参
+export interface SafeWriteOptions {
+    /** SimpleGit 实例 */
+    repoGit: SimpleGit;
+    /** 仓库的临时工作目录 */
+    tempDir: string;
+    /** 主分支名称 (如 'main' 或 'master') */
+    masterBranch: string;
+    /** 要创建或更新的目标分支名称 */
+    branchName: string;
+    /** 是否需要备份目标分支的现有内容 */
+    needBackup: boolean;
+    /** 仓库中要写入的文件路径 */
+    filePathInRepo: string;
+    /** 要写入文件的新内容 */
+    fileContent: string | Buffer;
+    /** Git 提交信息 */
+    commitMessage: string;
+    /** 在写入前需要强制删除的分支列表 (可选) */
+    branchesToDeleteBeforeWrite?: string[];
+    /** 内容处理器，用于在写入前合并或处理新旧内容 (可选) */
+    contentProcessor?: (oldContent: string | null) => string | Buffer;
+    /** 在提交前执行的异步钩子函数 (可选) */
+    beforeCommit?: () => Promise<void>;
+}
+
 /**
- * 主函数: 安全地写入分支 (优化版)
- * 作为调度器，组织调用各个子模块，并处理重试和清理逻辑。
- * 修改点：调整了核心执行顺序，确保先备份再删除，避免数据丢失。
+ * 安全地向指定分支写入文件，支持备份、重试和提交前钩子。
+ * @param options - 包含所有操作参数的配置对象。
  */
-export async function safeWriteToBranch(
-    repoGit: SimpleGit,
-    tempDir: string,
-    masterBranch: string,
-    branchName: string,
-    needBackup: boolean,
-    filePathInRepo: string,
-    fileContent: string | Buffer,
-    commitMessage: string,
-    branchesToDeleteBeforeWrite: string[] = [],
-    contentProcessor?: (oldContent: string | null) => string | Buffer
-): Promise<void> {
+export async function safeWriteToBranch(options: SafeWriteOptions): Promise<void> {
+    // 从 options 对象中解构出所有需要的参数
+    const {
+        repoGit,
+        tempDir,
+        masterBranch,
+        branchName,
+        needBackup,
+        filePathInRepo,
+        fileContent,
+        commitMessage,
+        branchesToDeleteBeforeWrite = [],
+        contentProcessor,
+        beforeCommit,
+    } = options;
+
+
     const maxAttempts = 3;
     let attempt = 0;
     let lastError: Error | null = null;
@@ -261,10 +291,18 @@ export async function safeWriteToBranch(
                 console.log(`${logTime()} 正在恢复备份的文件...`);
                 await restoreBackup(tempDir, backupTempDir);
             }
+
             // 5. 写入新内容
             writeFileContent(tempDir, filePathInRepo, fileContent, contentProcessor);
 
-            // 6. 提交并推送
+            // 6. 执行 beforeCommit 钩子函数（如果提供）
+            if (beforeCommit) {
+                console.log(`${logTime()} 正在执行 beforeCommit 钩子函数...`);
+                await beforeCommit();
+                console.log(`${logTime()} beforeCommit 钩子函数执行完成。`);
+            }
+
+            // 7. 提交并推送
             await commitAndPush(repoGit, branchName, commitMessage);
             // --- 流程结束 ---
 

@@ -5,6 +5,7 @@ import {logTime} from "./utils/log/LogUtils";
 import {getBeijingTimeString} from "./utils/date/DateUtil";
 import {EventType, OperationTrackingParams} from "./utils/operation-tracking/OperationTrackingEntity";
 import {safeWriteToBranch} from "./utils/git/GitBranchSaveWriteUtils";
+import {generateOperationTrackEventQueryReport} from "./utils/operation-report/OperationReport";
 
 const GITHUB_MASTER_BRANCH = 'main';
 const GITEE_MASTER_BRANCH = 'master';
@@ -133,6 +134,7 @@ export async function scanOperationTrackingFromUploaderRepo(): Promise<Operation
  * 1. 按 eventType 和北京日期对数据进行分组。
  * 2. 遍历每个分组，使用通用的 safeWriteToBranch 函数安全地追加数据。
  *    该函数会处理分支的重建、存量文件的恢复和最终的追加写入。
+ * 3. 在提交前，为 QUERY 类型的数据生成操作报告。
  */
 export async function mergeTrackingDataAndPushToDatabaseRepo(
     reports: OperationTrackingParams<EventType>[]
@@ -147,6 +149,8 @@ export async function mergeTrackingDataAndPushToDatabaseRepo(
 
         // 1. 按类型和日期分组
         const groupedReports: { [key: string]: OperationTrackingParams<EventType>[] } = {};
+        const involvedQueryDates = new Set<string>(); // 记录本次处理中涉及到的QUERY事件日期
+
         for (const report of reports) {
             const dateStr = getBeijingTimeString(report.eventTimestamp, 'date'); // 'YYYY-MM-DD'
             const key = `${report.eventType}_${dateStr}`;
@@ -154,8 +158,13 @@ export async function mergeTrackingDataAndPushToDatabaseRepo(
                 groupedReports[key] = [];
             }
             groupedReports[key].push(report);
+
+            if (report.eventType === EventType.QUERY) {
+                involvedQueryDates.add(dateStr);
+            }
         }
         console.debug(`${logTime()} 数据分组完成，共${Object.keys(groupedReports).length} 个分组`);
+        console.debug(`${logTime()} 本次涉及的QUERY事件日期: [${Array.from(involvedQueryDates).join(', ')}]`);
 
         const tempDir = path.join(process.cwd(), 'temp-database-repo');
         if (fs.existsSync(tempDir)) {
@@ -183,39 +192,98 @@ export async function mergeTrackingDataAndPushToDatabaseRepo(
 
             console.debug(`${logTime()} 开始处理分组:${groupKey}, 目标分支: ${branchName}, 文件:${filePathInRepo}`);
 
-            // *** 核心改动：使用 safeWriteToBranch 并传入 contentProcessor ***
-            await safeWriteToBranch(
-                repoGit,
-                tempDir,
-                GITEE_MASTER_BRANCH,
-                branchName,
-                true, // 更新埋点数据，需要备份历史文件， 因为我们是把每天的文件写到一个分支里，几个月左右 请手动提取一下，或者后续再优化
-                filePathInRepo,
-                '', // fileContent 在使用 contentProcessor 时被忽略，但必须传一个值
-                `chore: append raw tracking data for ${eventType} on${dateStr}`,
-                [branchName], // 删除并重建此分支
-                // *** 核心：定义内容处理逻辑 ***
-                (oldContent: string | null): string => {
-                    let existingReports: OperationTrackingParams<EventType>[] = [];
-                    if (oldContent) {
-                        try {
-                            const parsed = JSON.parse(oldContent);
-                            if (Array.isArray(parsed)) {
-                                existingReports = parsed;
-                            } else {
-                                console.warn(`${logTime()} 文件${filePathInRepo} 的现有内容不是数组格式，将被覆盖。`);
+            await safeWriteToBranch({
+                    repoGit: repoGit,
+                    tempDir: tempDir,
+                    masterBranch: GITEE_MASTER_BRANCH,
+                    branchName: branchName,
+                    needBackup: true, // 更新埋点数据，需要备份历史文件， 因为我们是把每天的文件写到一个分支里，几个月左右 请手动提取一下，或者后续再优化
+                    filePathInRepo: filePathInRepo,
+                    fileContent: '', // fileContent 在使用 contentProcessor 时被忽略，但必须传一个值
+                    commitMessage: `chore: append raw tracking data for ${eventType} on${dateStr}`,
+                    branchesToDeleteBeforeWrite: [branchName], // 删除并重建此分支
+                    contentProcessor: (oldContent: string | null): string => {
+                        let existingReports: OperationTrackingParams<EventType>[] = [];
+                        if (oldContent) {
+                            try {
+                                const parsed = JSON.parse(oldContent);
+                                if (Array.isArray(parsed)) {
+                                    existingReports = parsed;
+                                } else {
+                                    console.warn(`${logTime()} 文件${filePathInRepo} 的现有内容不是数组格式，将被覆盖。`);
+                                }
+                            } catch (e) {
+                                console.error(`${logTime()} 解析文件${filePathInRepo} 的旧内容失败，将覆盖写入。`, e);
                             }
-                        } catch (e) {
-                            console.error(`${logTime()} 解析文件${filePathInRepo} 的旧内容失败，将覆盖写入。`, e);
+                        }
+
+                        // 合并新旧数据
+                        const mergedReports = [...existingReports, ...newReports];
+                        console.debug(`${logTime()} 文件${filePathInRepo} 数据合并完成，旧数据: ${existingReports.length}, 新数据:${newReports.length}, 总计: ${mergedReports.length}`);
+
+                        // 返回合并后的新内容
+                        return JSON.stringify(mergedReports, null, 2);
+                    },
+                    // *** 核心：定义提交前的操作，用于生成报告 ***
+                    beforeCommit: async () => {
+                        // 仅对 QUERY 类型的事件生成报告
+                        if (eventType === EventType.QUERY) {
+                            try {
+
+                                console.debug(`${logTime()} 开始为 QUERY 事件生成报告...`);
+                                const queryDirPath = path.join(tempDir, uploadType);
+                                const filesToReport: string[] = [];
+
+                                // 1. 处理本次涉及的日期的文件
+                                for (const date of involvedQueryDates) {
+                                    const jsonFileName = `${uploadType}_${date}.json`;
+                                    const jsonFilePath = path.join(queryDirPath, jsonFileName);
+                                    if (fs.existsSync(jsonFilePath)) {
+                                        filesToReport.push(jsonFilePath);
+                                    }
+                                }
+
+                                // 2. 处理目录下其他老旧日期的文件
+                                if (fs.existsSync(queryDirPath)) {
+                                    const allFilesInDir = fs.readdirSync(queryDirPath);
+                                    for (const file of allFilesInDir) {
+                                        // 只处理 .json 文件
+                                        if (file.endsWith('.json')) {
+                                            const jsonFilePath = path.join(queryDirPath, file);
+                                            const reportFilePath = `${jsonFilePath}.report.txt`;
+                                            // 如果报告文件不存在，则需要生成报告
+                                            if (!fs.existsSync(reportFilePath)) {
+                                                // 避免重复添加
+                                                if (!filesToReport.includes(jsonFilePath)) {
+                                                    filesToReport.push(jsonFilePath);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                console.debug(`${logTime()} 确定需要生成报告的文件列表: [${filesToReport.map(f => path.basename(f)).join(', ')}]`);
+
+                                // 3. 遍历列表，为每个 JSON 文件生成报告
+                                for (const jsonFilePath of filesToReport) {
+                                    try {
+                                        console.debug(`${logTime()} 正在为 ${path.basename(jsonFilePath)} 生成报告...`);
+                                        // 假设 generateOperationTrackEventQueryReport 是一个同步或异步函数
+                                        // 这里使用 await 以确保它完成
+                                        generateOperationTrackEventQueryReport(jsonFilePath);
+                                        console.debug(`${logTime()} ${path.basename(jsonFilePath)} 报告生成成功。`);
+                                    } catch (e) {
+                                        console.error(`${logTime()} 为 ${jsonFilePath} 生成报告失败:`, e);
+                                        // 继续处理其他文件，不中断整个流程
+                                    }
+                                }
+
+                                // 只需要创建文件即可， 不需要做git add动作。 safeWriteToBranch 最后一步已经包含
+                            } catch (err) {
+                                console.error(`${logTime()} 生成报告总体失败:`, err);
+                            }
                         }
                     }
-
-                    // 合并新旧数据
-                    const mergedReports = [...existingReports, ...newReports];
-                    console.debug(`${logTime()} 文件${filePathInRepo} 数据合并完成，旧数据: ${existingReports.length}, 新数据:${newReports.length}, 总计: ${mergedReports.length}`);
-
-                    // 返回合并后的新内容
-                    return JSON.stringify(mergedReports, null, 2);
                 }
             );
             console.log(`${logTime()} 分组${groupKey} 处理完毕，数据已安全追加到分支 ${branchName}`);
@@ -232,6 +300,7 @@ export async function mergeTrackingDataAndPushToDatabaseRepo(
         throw error;
     }
 }
+
 
 /**
  * 主函数：处理完整的流程
