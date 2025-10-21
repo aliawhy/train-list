@@ -1,12 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-// import {QueryModuleType} from
 import {EventType, OperationTrackingParams, QueryModuleType} from "../operation-tracking/OperationTrackingEntity";
-import {QueryData, TransferPath, StationPathPair} from "./journey-query-filter-types"; // [修改点] 确保导入 TransferPath 和 StationPathPair
+import {QueryData, TransferPath, StationPathPair} from "./journey-query-filter-types";
 import {StationOption} from "../fetch/StationUtils";
 import {getBeijingTimeString} from "../date/DateUtil";
-// import {QueryData, StationOption} from "../../train/entity/journey-query-filter-types";
-// import {getBeijingTimeString} from "../../train/utils/date/DateUtil";
 
 // --- 类型定义和辅助接口 ---
 
@@ -17,8 +14,8 @@ interface AnalyzedQueryData {
     queryModule: QueryModuleType;
     departureStation: string;
     arrivalStation: string;
-    isAutoMode: boolean | null; // null for 非快速联程
-    rawPayload: any; // [修改点] 保留原始payload，用于后续详细分析
+    departureDay: string;
+    rawPayload: any; // 保留原始payload，用于后续详细分析
 }
 
 // 定义一个更详细的统计结果接口
@@ -33,8 +30,8 @@ interface DetailedStats {
 interface StatsByModule {
     all: DetailedStats;
     guangdong: DetailedStats;
-    rapid: DetailedStats;
-    exact: DetailedStats;
+    rapid: DetailedStats; // rapid 代表 定制中转
+    exact: DetailedStats; // exact 代表 拼接中转
 }
 
 // 用户轨迹接口
@@ -42,8 +39,23 @@ interface UserTrajectory {
     [userUuid: string]: AnalyzedQueryData[];
 }
 
-// --- [新增] 辅助函数声明 ---
-// 假设这两个函数与 QueryData 在同一文件，或已正确导入
+// [新增] 定制中转模块的深度分析数据结构
+interface CustomTransferAnalysis {
+    totalQueries: number;
+    totalUsedPaths: number;
+    directPathUsageCount: number;
+    recommendPathUsageCount: number;
+    customPathUsageCount: number;
+    totalTransferStops: number; // 所有中转路径的总中转站数
+    queriesWithTransfer: number; // 使用了至少一条中转路径的查询数
+    exploratoryUserQueries: number; // 同时使用推荐和自定义路径的查询数
+    directOnlyQueries: number; // 只使用了直达路径的查询数
+    noValidPathQueries: number; // 没有任何路径被使用的查询数
+}
+
+
+// --- 辅助函数 ---
+
 /**
  * 获取所有被使用的路径
  */
@@ -51,23 +63,9 @@ function getUsedPaths(queryData: QueryData): TransferPath[] {
     const usedPaths: TransferPath[] = [];
     if (!queryData) return usedPaths;
 
-    queryData?.directPaths?.forEach(path => {
-        if (path.used) {
-            usedPaths.push(path);
-        }
-    });
-
-    queryData?.recommendPaths?.forEach(path => {
-        if (path.used) {
-            usedPaths.push(path);
-        }
-    });
-
-    queryData?.customPaths?.forEach(path => {
-        if (path.used) {
-            usedPaths.push(path);
-        }
-    });
+    queryData?.directPaths?.forEach(path => { if (path.used) usedPaths.push(path); });
+    queryData?.recommendPaths?.forEach(path => { if (path.used) usedPaths.push(path); });
+    queryData?.customPaths?.forEach(path => { if (path.used) usedPaths.push(path); });
 
     return usedPaths;
 }
@@ -88,49 +86,42 @@ function stationPathPair2StringForShowV2(path: StationPathPair[]): string {
  */
 export function generateOperationTrackEventQueryReport(filePath: string): void {
     try {
-        // 1. 读取和解析数据
         const rawData = readAndParseJson(filePath);
         if (!rawData || rawData.length === 0) {
             console.log("文件为空或解析失败，无法生成报告。");
             return;
         }
 
-        // 2. 数据清洗和结构化
         const analyzedData = transformData(rawData);
 
-        // 3. 执行各项分析
+        // 1. 总体概览统计
         const totalQueries = analyzedData.length;
-        // [修改点 1] 数据分类逻辑已包含新旧名称，无需改动
         const guangdongQueries = analyzedData.filter(d => d.queryModule === '广东城际');
-        const rapidQueries = analyzedData.filter(d => d.queryModule === '快速联程' || d.queryModule === '定制中转');
-        const exactQueries = analyzedData.filter(d => d.queryModule === '精确联程' || d.queryModule === '拼接中转');
+        const rapidQueries = analyzedData.filter(d => d.queryModule === '定制中转');
+        const exactQueries = analyzedData.filter(d => d.queryModule === '拼接中转');
 
-        const guangdongCount = guangdongQueries.length;
-        const rapidCount = rapidQueries.length;
-        const exactCount = exactQueries.length;
-
-        // 4. 获取详细的统计数据
         const detailedStats = getDetailedStats(analyzedData);
-
-        // 5. 补充分析
         const uniqueUsers = new Set(analyzedData.map(d => d.userUuid)).size;
         const avgQueriesPerUser = totalQueries > 0 ? (totalQueries / uniqueUsers).toFixed(2) : '0';
         const userTrajectories = getUserTrajectories(analyzedData);
 
-        // 6. 生成报告内容
+        // 2. [新增] 定制中转深度分析
+        const customTransferAnalysis = analyzeCustomTransferModule(analyzedData);
+
+        // 3. 生成报告内容
         const reportContent = buildReportContent({
             totalQueries,
-            guangdongCount,
-            rapidCount,
-            exactCount,
+            guangdongCount: guangdongQueries.length,
+            rapidCount: rapidQueries.length,
+            exactCount: exactQueries.length,
             detailedStats,
             userTrajectories,
             uniqueUsers,
             avgQueriesPerUser,
-            filePath  // 传递 filePath 参数
+            filePath,
+            customTransferAnalysis // [新增] 传递深度分析结果
         });
 
-        // 7. 写入报告文件
         const reportFilePath = `${filePath}.report.txt`;
         fs.writeFileSync(reportFilePath, reportContent, 'utf-8');
         console.log(`运营报告已成功生成: ${reportFilePath}`);
@@ -160,10 +151,9 @@ function transformData(rawData: OperationTrackingParams<EventType>[]): AnalyzedQ
     return rawData
         .filter(event => event.eventType === EventType.QUERY && event.payload)
         .map(event => {
-            const payload = event.payload as any; // 使用any进行类型断言，因为payload结构是动态的
+            const payload = event.payload as any;
             const queryData = payload.queryData as QueryData;
 
-            // 统一车站名称的提取逻辑，兼容 string 和 StationOption
             const getStationName = (station: StationOption | string | null | undefined): string => {
                 if (typeof station === 'string' && station) return station;
                 if (station && typeof station === 'object' && station.name) return station.name;
@@ -176,8 +166,8 @@ function transformData(rawData: OperationTrackingParams<EventType>[]): AnalyzedQ
                 queryModule: payload.queryModule,
                 departureStation: getStationName(queryData.departureStation),
                 arrivalStation: getStationName(queryData.arrivalStation),
-                isAutoMode: payload.queryModule === '快速联程' ? queryData.autoTransferStation : null, // 注意：旧版快速联程有此字段
-                rawPayload: payload, // [修改点] 保留原始payload
+                departureDay: queryData.departureDay || '未知日期',
+                rawPayload: payload,
             };
         });
 }
@@ -196,19 +186,10 @@ function getDetailedStats(data: AnalyzedQueryData[]): StatsByModule {
     data.forEach(item => {
         const {queryModule, departureStation, arrivalStation} = item;
         const route = `${departureStation}→${arrivalStation}`;
-
-        // 更新 'all' 模块的统计
         updateStatsForModule(stats.all, departureStation, arrivalStation, route);
-
-        // 根据具体模块更新对应统计
-        if (queryModule === '广东城际') {
-            updateStatsForModule(stats.guangdong, departureStation, arrivalStation, route);
-            // [修改点 2] 更新统计模块的判断逻辑，以包含新的模块名称
-        } else if (queryModule === '快速联程' || queryModule === '定制中转') {
-            updateStatsForModule(stats.rapid, departureStation, arrivalStation, route);
-        } else if (queryModule === '精确联程' || queryModule === '拼接中转') {
-            updateStatsForModule(stats.exact, departureStation, arrivalStation, route);
-        }
+        if (queryModule === '广东城际') updateStatsForModule(stats.guangdong, departureStation, arrivalStation, route);
+        else if (queryModule === '定制中转') updateStatsForModule(stats.rapid, departureStation, arrivalStation, route);
+        else if (queryModule === '拼接中转') updateStatsForModule(stats.exact, departureStation, arrivalStation, route);
     });
 
     return stats;
@@ -218,20 +199,12 @@ function getDetailedStats(data: AnalyzedQueryData[]): StatsByModule {
  * 辅助函数：为单个模块更新统计数据
  */
 function updateStatsForModule(moduleStats: DetailedStats, departure: string, arrival: string, route: string): void {
-    // 1. 查询线路统计
     moduleStats.routeCounts[route] = (moduleStats.routeCounts[route] || 0) + 1;
-
-    // 2. 查询车站统计 (出发或到达)
     moduleStats.totalStationCounts[departure] = (moduleStats.totalStationCounts[departure] || 0) + 1;
     moduleStats.totalStationCounts[arrival] = (moduleStats.totalStationCounts[arrival] || 0) + 1;
-
-    // 3. 出发车站统计
     moduleStats.departureStationCounts[departure] = (moduleStats.departureStationCounts[departure] || 0) + 1;
-
-    // 4. 到达车站统计
     moduleStats.arrivalStationCounts[arrival] = (moduleStats.arrivalStationCounts[arrival] || 0) + 1;
 }
-
 
 /**
  * 生成用户轨迹
@@ -239,33 +212,75 @@ function updateStatsForModule(moduleStats: DetailedStats, departure: string, arr
 function getUserTrajectories(data: AnalyzedQueryData[]): UserTrajectory {
     const trajectories: UserTrajectory = {};
     data.forEach(item => {
-        if (!trajectories[item.userUuid]) {
-            trajectories[item.userUuid] = [];
-        }
+        if (!trajectories[item.userUuid]) trajectories[item.userUuid] = [];
         trajectories[item.userUuid].push(item);
     });
-
-    // 对每个用户的轨迹按时间排序
     for (const userUuid in trajectories) {
         trajectories[userUuid].sort((a, b) => a.eventTimestamp - b.eventTimestamp);
     }
-
     return trajectories;
 }
+
+/**
+ * [新增] 分析定制中转模块的深度数据
+ */
+function analyzeCustomTransferModule(allData: AnalyzedQueryData[]): CustomTransferAnalysis {
+    const analysis: CustomTransferAnalysis = {
+        totalQueries: 0, totalUsedPaths: 0, directPathUsageCount: 0, recommendPathUsageCount: 0,
+        customPathUsageCount: 0, totalTransferStops: 0, queriesWithTransfer: 0,
+        exploratoryUserQueries: 0, directOnlyQueries: 0, noValidPathQueries: 0
+    };
+
+    const customQueries = allData.filter(d => d.queryModule === '定制中转');
+    analysis.totalQueries = customQueries.length;
+
+    customQueries.forEach(event => {
+        const queryData = event.rawPayload.queryData as QueryData;
+        const usedDirectPaths = queryData?.directPaths?.filter(p => p.used) ?? [];
+        const usedRecommendPaths = queryData?.recommendPaths?.filter(p => p.used) ?? [];
+        const usedCustomPaths = queryData?.customPaths?.filter(p => p.used) ?? [];
+
+        const totalUsedInThisQuery = usedDirectPaths.length + usedRecommendPaths.length + usedCustomPaths.length;
+        analysis.totalUsedPaths += totalUsedInThisQuery;
+
+        analysis.directPathUsageCount += usedDirectPaths.length;
+        analysis.recommendPathUsageCount += usedRecommendPaths.length;
+        analysis.customPathUsageCount += usedCustomPaths.length;
+
+        // 计算中转站数
+        const allTransferPaths = [...usedRecommendPaths, ...usedCustomPaths];
+        allTransferPaths.forEach(path => {
+            analysis.totalTransferStops += (path.path.length - 1);
+        });
+
+        if (allTransferPaths.length > 0) {
+            analysis.queriesWithTransfer++;
+        }
+
+        // 判断用户类型
+        if (usedRecommendPaths.length > 0 && usedCustomPaths.length > 0) {
+            analysis.exploratoryUserQueries++;
+        } else if (totalUsedInThisQuery > 0 && usedDirectPaths.length === totalUsedInThisQuery) {
+            analysis.directOnlyQueries++;
+        }
+
+        if (totalUsedInThisQuery === 0) {
+            analysis.noValidPathQueries++;
+        }
+    });
+
+    return analysis;
+}
+
 
 /**
  * 构建最终的报告文本
  */
 function buildReportContent(stats: {
-    totalQueries: number;
-    guangdongCount: number;
-    rapidCount: number;
-    exactCount: number;
-    detailedStats: StatsByModule;
-    userTrajectories: UserTrajectory;
-    uniqueUsers: number;
-    avgQueriesPerUser: string;
-    filePath: string;
+    totalQueries: number; guangdongCount: number; rapidCount: number; exactCount: number;
+    detailedStats: StatsByModule; userTrajectories: UserTrajectory; uniqueUsers: number;
+    avgQueriesPerUser: string; filePath: string;
+    customTransferAnalysis: CustomTransferAnalysis; // [新增]
 }): string {
     let output = '';
 
@@ -288,86 +303,49 @@ function buildReportContent(stats: {
 
     // === 2. Top 10 数据详情 ===
     const modules = [
-        {key: 'all', name: '全模块'},
-        {key: 'guangdong', name: '广东城际'},
-        {key: 'rapid', name: '定制中转'},
-        {key: 'exact', name: '拼接中转'},
+        {key: 'all', name: '全模块'}, {key: 'guangdong', name: '广东城际'},
+        {key: 'rapid', name: '定制中转'}, {key: 'exact', name: '拼接中转'},
     ];
-
     modules.forEach(module => {
         const moduleStats = stats.detailedStats[module.key as keyof StatsByModule];
         output += '╔══════════════════════════════════════════════════════════════════════════════════════════════════╗\n';
         output += `║                                   2. ${module.name} Top 10 数据详情                                    ║\n`;
-        output += '╚══════════════════════════════════════════════════════════════════════════════════════════════════╝\n';
-
-        output += `--- 2.1 查询线路 Top 10 ---\n`;
-        output += appendTopList(moduleStats.routeCounts, '次');
-        output += '\n';
-
-        output += `--- 2.2 查询车站 Top 10 (出发或到达) ---\n`;
-        output += appendTopList(moduleStats.totalStationCounts, '次');
-        output += '\n';
-
-        output += `--- 2.3 出发车站 Top 10 ---\n`;
-        output += appendTopList(moduleStats.departureStationCounts, '次');
-        output += '\n';
-
-        output += `--- 2.4 到达车站 Top 10 ---\n`;
-        output += appendTopList(moduleStats.arrivalStationCounts, '次');
-        output += '\n\n';
+        output += '╚══════════════════════════════════════════════════════════════════════════════════════════════════╝\n`;
+        output += `--- 2.1 查询线路 Top 10 ---\n`; output += appendTopList(moduleStats.routeCounts, '次'); output += '\n';
+        output += `--- 2.2 查询车站 Top 10 (出发或到达) ---\n`; output += appendTopList(moduleStats.totalStationCounts, '次'); output += '\n';
+        output += `--- 2.3 出发车站 Top 10 ---\n`; output += appendTopList(moduleStats.departureStationCounts, '次'); output += '\n';
+        output += `--- 2.4 到达车站 Top 10 ---\n`; output += appendTopList(moduleStats.arrivalStationCounts, '次'); output += '\n\n';
     });
 
-    // === 3. 定制中转查询模式占比 ===
+    // === 3. 定制中转模块深度分析 ===
     output += '╔══════════════════════════════════════════════════════════════════════════════════════════════════╗\n';
-    output += '║                                   3. 定制中转查询模式占比                                          ║\n';
+    output += '║                                   3. 定制中转模块深度分析                                          ║\n';
     output += '╚══════════════════════════════════════════════════════════════════════════════════════════════════╝\n';
-
-    const rapidAndCustomQueries = Object.values(stats.userTrajectories).flat().filter(
-        event => event.queryModule === '定制中转' || event.queryModule === '快速联程'
-    );
-
-    if (rapidAndCustomQueries.length === 0) {
-        output += '定制中转/快速联程模块无查询数据。\n';
+    const { customTransferAnalysis } = stats;
+    if (customTransferAnalysis.totalQueries === 0) {
+        output += '定制中转模块无查询数据。\n\n';
     } else {
-        let autoCount = 0, manualCount = 0, unknownCount = 0;
-        let legacyAutoCount = 0, legacyManualCount = 0;
+        // 3.1 路径使用分析
+        output += `--- 3.1 路径使用分析 (基于 ${customTransferAnalysis.totalQueries} 次查询) ---\n`;
+        output += `总采纳路径数: ${customTransferAnalysis.totalUsedPaths}\n`;
+        output += `  - 直达路径采纳: ${customTransferAnalysis.directPathUsageCount} 次 (${(customTransferAnalysis.directPathUsageCount / customTransferAnalysis.totalUsedPaths * 100).toFixed(2)}%)\n`;
+        output += `  - 推荐路径采纳: ${customTransferAnalysis.recommendPathUsageCount} 次 (${(customTransferAnalysis.recommendPathUsageCount / customTransferAnalysis.totalUsedPaths * 100).toFixed(2)}%)\n`;
+        output += `  - 自定义路径采纳: ${customTransferAnalysis.customPathUsageCount} 次 (${(customTransferAnalysis.customPathUsageCount / customTransferAnalysis.totalUsedPaths * 100).toFixed(2)}%)\n\n`;
 
-        rapidAndCustomQueries.forEach(event => {
-            if (event.queryModule === '定制中转') {
-                const queryData = event.rawPayload.queryData as QueryData;
-                const hasUsedRecommendPath = queryData?.recommendPaths?.some(p => p.used) ?? false;
-                const hasUsedCustomPath = queryData?.customPaths?.some(p => p.used) ?? false;
-                if (hasUsedRecommendPath) autoCount++;
-                else if (hasUsedCustomPath) manualCount++;
-                else unknownCount++;
-            } else if (event.queryModule === '快速联程') {
-                if (event.isAutoMode === true) legacyAutoCount++;
-                else if (event.isAutoMode === false) legacyManualCount++;
-                else unknownCount++;
-            }
-        });
+        // 3.2 中转偏好分析
+        output += `--- 3.2 中转偏好分析 ---\n`;
+        const avgTransfers = customTransferAnalysis.queriesWithTransfer > 0 ? (customTransferAnalysis.totalTransferStops / customTransferAnalysis.queriesWithTransfer).toFixed(2) : '0';
+        output += `平均中转次数 (仅限有中转的查询): ${avgTransfers} 次\n`;
+        output += `涉及中转的查询数: ${customTransferAnalysis.queriesWithTransfer} 次 (${(customTransferAnalysis.queriesWithTransfer / customTransferAnalysis.totalQueries * 100).toFixed(2)}%)\n\n`;
 
-        const totalRapidQueries = rapidAndCustomQueries.length;
-        const totalNewQueries = autoCount + manualCount + unknownCount;
-        const totalLegacyQueries = legacyAutoCount + legacyManualCount;
-
-        output += `--- 总计 (${totalRapidQueries} 次查询) ---\n`;
-        if (totalNewQueries > 0) {
-            output += `  [新版“定制中转”] - 共 ${totalNewQueries} 次\n`;
-            output += `    - 自动模式 (采纳推荐): ${autoCount} 次 (${(autoCount / totalNewQueries * 100).toFixed(2)}%)\n`;
-            output += `    - 手动模式 (完全自定义): ${manualCount} 次 (${(manualCount / totalNewQueries * 100).toFixed(2)}%)\n`;
-            output += `    - 未知/其他模式 (如仅使用直达): ${unknownCount} 次 (${(unknownCount / totalNewQueries * 100).toFixed(2)}%)\n`;
-        }
-        if (totalLegacyQueries > 0) {
-            output += `  [旧版“快速联程”] - 共 ${totalLegacyQueries} 次 (基于 autoTransferStation 字段)\n`;
-            output += `    - 自动模式: ${legacyAutoCount} 次 (${(legacyAutoCount / totalLegacyQueries * 100).toFixed(2)}%)\n`;
-            output += `    - 手动模式: ${legacyManualCount} 次 (${(legacyManualCount / totalLegacyQueries * 100).toFixed(2)}%)\n`;
-        }
+        // 3.3 用户行为洞察
+        output += `--- 3.3 用户行为洞察 ---\n`;
+        output += `“探索型”用户查询 (同时使用推荐和自定义): ${customTransferAnalysis.exploratoryUserQueries} 次 (${(customTransferAnalysis.exploratoryUserQueries / customTransferAnalysis.totalQueries * 100).toFixed(2)}%)\n`;
+        output += `“纯直达”用户查询 (仅使用直达路径): ${customTransferAnalysis.directOnlyQueries} 次 (${(customTransferAnalysis.directOnlyQueries / customTransferAnalysis.totalQueries * 100).toFixed(2)}%)\n`;
+        output += `无有效路径的查询: ${customTransferAnalysis.noValidPathQueries} 次 (${(customTransferAnalysis.noValidPathQueries / customTransferAnalysis.totalQueries * 100).toFixed(2)}%)\n\n`;
     }
-    output += '\n';
 
-
-    // === 4. 用户轨迹 (核心修改部分) ===
+    // === 4. 用户轨迹 ===
     output += '╔══════════════════════════════════════════════════════════════════════════════════════════════════╗\n';
     output += '║                                          4. 用户轨迹                                               ║\n';
     output += '╚══════════════════════════════════════════════════════════════════════════════════════════════════╝\n';
@@ -380,60 +358,15 @@ function buildReportContent(stats: {
             const trajectory = stats.userTrajectories[userUuid];
             trajectory.forEach((event, index) => {
                 const date = getBeijingTimeString(event.eventTimestamp, 'datetime');
-                let modeText = '';
-                if (event.queryModule === '定制中转') {
-                    const queryData = event.rawPayload.queryData as QueryData;
-                    const hasUsedRecommendPath = queryData?.recommendPaths?.some(p => p.used) ?? false;
-                    const hasUsedCustomPath = queryData?.customPaths?.some(p => p.used) ?? false;
-                    if (hasUsedRecommendPath) modeText = '(自动)';
-                    else if (hasUsedCustomPath) modeText = '(手动)';
-                } else if (event.queryModule === '快速联程') {
-                    modeText = event.isAutoMode !== null ? (event.isAutoMode ? '(自动)' : '(手动)') : '';
-                }
+                output += `  ${index + 1}. [${date}] ${event.queryModule} ${event.departureStation}→${event.arrivalStation} (出发日期: ${event.departureDay})\n`;
 
-                output += `  ${index + 1}. [${date}] ${event.queryModule} ${event.departureStation}→${event.arrivalStation} ${modeText}\n`;
-
-                // [核心修改] 为“定制中转”模块补充带前缀的详细路径
                 if (event.queryModule === '定制中转') {
                     const queryData = event.rawPayload.queryData as QueryData;
                     let hasAnyPath = false;
-
-                    // 1. 处理直达路径
-                    if (queryData?.directPaths) {
-                        queryData.directPaths.forEach(path => {
-                            if (path.used) {
-                                hasAnyPath = true;
-                                const pathString = stationPathPair2StringForShowV2(path.path);
-                                output += `    - 直达路径: ${pathString}\n`;
-                            }
-                        });
-                    }
-
-                    // 2. 处理推荐路径
-                    if (queryData?.recommendPaths) {
-                        queryData.recommendPaths.forEach(path => {
-                            if (path.used) {
-                                hasAnyPath = true;
-                                const pathString = stationPathPair2StringForShowV2(path.path);
-                                output += `    - 推荐路径: ${pathString}\n`;
-                            }
-                        });
-                    }
-
-                    // 3. 处理手动路径
-                    if (queryData?.customPaths) {
-                        queryData.customPaths.forEach(path => {
-                            if (path.used) {
-                                hasAnyPath = true;
-                                const pathString = stationPathPair2StringForShowV2(path.path);
-                                output += `    - 手动路径: ${pathString}\n`;
-                            }
-                        });
-                    }
-
-                    if (!hasAnyPath) {
-                        output += `    - 路径: (无有效路径)\n`;
-                    }
+                    if (queryData?.directPaths) queryData.directPaths.forEach(path => { if (path.used) { hasAnyPath = true; output += `    - 直达路径: ${stationPathPair2StringForShowV2(path.path)}\n`; }});
+                    if (queryData?.recommendPaths) queryData.recommendPaths.forEach(path => { if (path.used) { hasAnyPath = true; output += `    - 推荐路径: ${stationPathPair2StringForShowV2(path.path)}\n`; }});
+                    if (queryData?.customPaths) queryData.customPaths.forEach(path => { if (path.used) { hasAnyPath = true; output += `    - 手动路径: ${stationPathPair2StringForShowV2(path.path)}\n`; }});
+                    if (!hasAnyPath) output += `    - 路径: (无有效路径)\n`;
                 }
             });
             output += '\n';
@@ -443,30 +376,17 @@ function buildReportContent(stats: {
     return output;
 }
 
-
 /**
  * 辅助函数：将Top列表格式化后返回字符串
  */
 function appendTopList(counts: { [key: string]: number }, unit: string): string {
-    const sortedList = Object.entries(counts)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 10);
-
-    if (sortedList.length === 0) {
-        return '暂无数据。\n';
-    }
-
+    const sortedList = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 10);
+    if (sortedList.length === 0) return '暂无数据。\n';
     let result = '';
-    sortedList.forEach(([name, count], index) => {
-        result += `${index + 1}. ${name}: ${count} ${unit}\n`;
-    });
-
+    sortedList.forEach(([name, count], index) => { result += `${index + 1}. ${name}: ${count} ${unit}\n`; });
     return result;
 }
 
-
 // --- 执行函数 ---
-// 确保这里的路径是正确的
 // const jsonFilePath = 'D:\\工作区\\软件项目\\gitee\\mini-service-database\\track-query\\track-query_2025-10-15.json';
-// 会得到输出 'D:\\工作区\\软件项目\\gitee\\mini-service-database\\track-query\\track-query_2025-10-15.json.report.txt';
 // generateOperationTrackEventQueryReport(jsonFilePath);
