@@ -280,7 +280,7 @@ function buildReportContent(stats: {
     totalQueries: number; guangdongCount: number; rapidCount: number; exactCount: number;
     detailedStats: StatsByModule; userTrajectories: UserTrajectory; uniqueUsers: number;
     avgQueriesPerUser: string; filePath: string;
-    customTransferAnalysis: CustomTransferAnalysis; // [新增]
+    customTransferAnalysis: CustomTransferAnalysis;
 }): string {
     let output = '';
 
@@ -310,11 +310,23 @@ function buildReportContent(stats: {
         const moduleStats = stats.detailedStats[module.key as keyof StatsByModule];
         output += '╔══════════════════════════════════════════════════════════════════════════════════════════════════╗\n';
         output += `║                                   2. ${module.name} Top 10 数据详情                                    ║\n`;
-        output += '╚══════════════════════════════════════════════════════════════════════════════════════════════════╝\n`;
-        output += `--- 2.1 查询线路 Top 10 ---\n`; output += appendTopList(moduleStats.routeCounts, '次'); output += '\n';
-        output += `--- 2.2 查询车站 Top 10 (出发或到达) ---\n`; output += appendTopList(moduleStats.totalStationCounts, '次'); output += '\n';
-        output += `--- 2.3 出发车站 Top 10 ---\n`; output += appendTopList(moduleStats.departureStationCounts, '次'); output += '\n';
-        output += `--- 2.4 到达车站 Top 10 ---\n`; output += appendTopList(moduleStats.arrivalStationCounts, '次'); output += '\n\n';
+        output += '╚══════════════════════════════════════════════════════════════════════════════════════════════════╝\n';
+
+        output += `--- 2.1 查询线路 Top 10 ---\n`;
+        output += appendTopList(moduleStats.routeCounts, '次');
+        output += '\n';
+
+        output += `--- 2.2 查询车站 Top 10 (出发或到达) ---\n`;
+        output += appendTopList(moduleStats.totalStationCounts, '次');
+        output += '\n';
+
+        output += `--- 2.3 出发车站 Top 10 ---\n`;
+        output += appendTopList(moduleStats.departureStationCounts, '次');
+        output += '\n';
+
+        output += `--- 2.4 到达车站 Top 10 ---\n`;
+        output += appendTopList(moduleStats.arrivalStationCounts, '次');
+        output += '\n\n';
     });
 
     // === 3. 定制中转模块深度分析 ===
@@ -363,10 +375,33 @@ function buildReportContent(stats: {
                 if (event.queryModule === '定制中转') {
                     const queryData = event.rawPayload.queryData as QueryData;
                     let hasAnyPath = false;
-                    if (queryData?.directPaths) queryData.directPaths.forEach(path => { if (path.used) { hasAnyPath = true; output += `    - 直达路径: ${stationPathPair2StringForShowV2(path.path)}\n`; }});
-                    if (queryData?.recommendPaths) queryData.recommendPaths.forEach(path => { if (path.used) { hasAnyPath = true; output += `    - 推荐路径: ${stationPathPair2StringForShowV2(path.path)}\n`; }});
-                    if (queryData?.customPaths) queryData.customPaths.forEach(path => { if (path.used) { hasAnyPath = true; output += `    - 手动路径: ${stationPathPair2StringForShowV2(path.path)}\n`; }});
-                    if (!hasAnyPath) output += `    - 路径: (无有效路径)\n`;
+                    if (queryData?.directPaths) {
+                        queryData.directPaths.forEach(path => {
+                            if (path.used) {
+                                hasAnyPath = true;
+                                output += `    - 直达路径: ${stationPathPair2StringForShowV2(path.path)}\n`;
+                            }
+                        });
+                    }
+                    if (queryData?.recommendPaths) {
+                        queryData.recommendPaths.forEach(path => {
+                            if (path.used) {
+                                hasAnyPath = true;
+                                output += `    - 推荐路径: ${stationPathPair2StringForShowV2(path.path)}\n`;
+                            }
+                        });
+                    }
+                    if (queryData?.customPaths) {
+                        queryData.customPaths.forEach(path => {
+                            if (path.used) {
+                                hasAnyPath = true;
+                                output += `    - 手动路径: ${stationPathPair2StringForShowV2(path.path)}\n`;
+                            }
+                        });
+                    }
+                    if (!hasAnyPath) {
+                        output += `    - 路径: (无有效路径)\n`;
+                    }
                 }
             });
             output += '\n';
@@ -375,6 +410,7 @@ function buildReportContent(stats: {
 
     return output;
 }
+
 
 /**
  * 辅助函数：将Top列表格式化后返回字符串
