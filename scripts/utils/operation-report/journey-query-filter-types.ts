@@ -16,16 +16,48 @@ export interface StationPathPair {
 }
 
 export interface QueryData {
-    departureStation: StationOption | string | null // 广东城际使用 string类型，其他使用StationOption
-    arrivalStation: StationOption | string | null // 广东城际使用 string类型，其他使用StationOption
+    departureStation: StationOption | string | null // 广东城际、定制中转全部改造为string了，其他还是StationOption
+    arrivalStation: StationOption | string | null // 广东城际、定制中转全部改造为string了，其他还是StationOption
     departureDay: string
     customTransferCnt: number
-    transferStations: StationOption[]
-    customTransferPaths: TransferPath[]
-    autoTransferPaths: TransferPath[]
-    autoTransferStation: boolean
+    // transferStations: StationOption[]
+    // customTransferPaths: TransferPath[]
+    // autoTransferPaths: TransferPath[]
+    directPaths: TransferPath[]
+    recommendPaths: TransferPath[]
+    customPaths: TransferPath[]
+    // autoTransferStation: boolean // 已经不存在
     __load_finished__: boolean
 }
+
+export function stationPathPair2StringForShowV2(path: StationPathPair[]): string {
+    return path.map(pair => `${pair.station1}→${pair.station2}`).join(' | ')
+}
+
+// 获取所有被使用的路径
+export function getUsedPaths(queryData: QueryData): TransferPath[] {
+    const usedPaths: TransferPath[] = [];
+
+    queryData?.directPaths?.forEach(path => {
+        if (path.used) {
+            usedPaths.push(path);
+        }
+    });
+
+    queryData?.recommendPaths?.forEach(path => {
+        if (path.used) {
+            usedPaths.push(path);
+        }
+    });
+
+    queryData?.customPaths?.forEach(path => {
+        if (path.used) {
+            usedPaths.push(path);
+        }
+    });
+
+    return usedPaths;
+};
 
 export interface JourneyData {
     id: string

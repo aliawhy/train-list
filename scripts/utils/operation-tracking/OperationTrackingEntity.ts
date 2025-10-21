@@ -48,7 +48,7 @@ export interface BaseEventPayload {
 }
 
 // 查询行为记录
-export type QueryModuleType = '广东城际' | '快速联程' | '精确联程'
+export type QueryModuleType = '广东城际' | '定制中转' | '拼接中转'
 
 export interface QueryEventPayload extends BaseEventPayload {
     queryModule: QueryModuleType;
