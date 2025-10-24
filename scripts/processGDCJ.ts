@@ -164,9 +164,8 @@ async function getTrainDetailsForQueryDays() {
 }
 
 /**
- *
- * 每天一个文件
- * /data/GDCJ/gdcj-YYYY-MM-DD.msgpack.gz（每天一个文件）
+ * key： 日期
+ * val： 这天的列车
  */
 export type TrainDetailMap = Record<string, TrainDetail[]>
 
