@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import {FetchUtil} from "./FetchUtil";
 
 export interface TrainInfo {
     trainNumber: string; // 列车编号 如G123
@@ -26,21 +26,13 @@ export class TrainQueryUtils {
         const url = `${baseUrl}?leftTicketDTO.train_date=${trainDay}&leftTicketDTO.from_station=${fromStationCode}&leftTicketDTO.to_station=${toStationCode}&purpose_codes=ADULT`;
         console.debug(`Fetching train data in ${trainDay} from ${fromStationCode} to ${toStationCode}`);
 
-
         try {
-            const response = await fetch(url, {
-                method: 'GET',
+            const responseText = await FetchUtil.get(url, {
                 headers: {
                     'cookie': '_jc_save_fromStation=%u5317%u4EAC%2CBJP;'
                 },
+                json: false
             });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            // 打印原始响应文本
-            const responseText = await response.text();
 
             try {
                 return JSON.parse(responseText);

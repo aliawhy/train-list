@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 import {HistoryResultUtil} from "../history/HistoryResultUtil";
 import {randomDelay} from "../delay/DelayUtil";
+import {FetchUtil} from "./FetchUtil";
 
 export interface StopTime {
     // 停靠站
@@ -35,21 +36,30 @@ export class TrainDetailUtils {
             throw new Error('API_D environment variable is not set');
         }
 
-        const url = `${baseUrl}?trainCode=${trainCode}&startDay=${startDay}`;
+        // const url = `${baseUrl}?trainCode=${trainCode}&startDay=${startDay}`;
+        //
+        // const response = await fetch(url, {
+        //     method: 'POST',
+        //     headers: {
+        //         'Content-Type': 'application/x-www-form-urlencoded',
+        //     },
+        // });
+        //
+        // if (!response.ok) {
+        //     throw new Error(`HTTP error! status: ${response.status}`);
+        // }
+        //
+        // // 打印原始响应文本
+        // const responseText = await response.text();
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
+        const formData = new URLSearchParams();
+        formData.append('trainCode', 'trainCode');
+        formData.append('startDay', 'startDay');
+
+        const responseText = await FetchUtil.post(baseUrl, formData, {
+            json: false
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        // 打印原始响应文本
-        const responseText = await response.text();
         try {
             return JSON.parse(responseText);
         } catch (e) {
