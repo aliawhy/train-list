@@ -1,5 +1,6 @@
 import fetch from 'node-fetch';
 import {HistoryResultUtil} from "../history/HistoryResultUtil";
+import {randomDelay} from "../delay/DelayUtil";
 
 export interface StopTime {
     // 停靠站
@@ -72,6 +73,7 @@ export class TrainDetailUtils {
             let result = HistoryResultUtil.getTrainDetail(startDay, trainCode);
             if (!result?.stopTime?.length) {
                 console.debug(`历史数据中 列车${trainCode}, ${startDay} 详情为空`)
+                await randomDelay(500, 1000);
                 const data = await TrainDetailUtils.queryTrainDetail(trainCode, startDay);
                 result = data?.data?.trainDetail || {} as TrainDetail;
             }

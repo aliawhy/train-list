@@ -108,7 +108,6 @@ export class FetchAllTrainDataUtils {
 
             try {
                 // 查询单个车次详情
-                await randomDelay(500, 1000);
                 const trainDetail = await TrainDetailUtils.queryTrainDetailAndSimpleField(trainNumber, queryDay);
 
                 // 将结果存入Map
