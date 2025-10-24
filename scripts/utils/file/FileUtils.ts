@@ -4,118 +4,31 @@ import {logTime} from "../log/LogUtils";
 import path from "path";
 import fs from "fs";
 import {getBeijingDateTime} from "../date/DateUtil";
-import {TrainDetailMap} from "../../processGDCJ";
+import {isTest, TrainDetailMap} from "../../processGDCJ";
 import {simpleGit, SimpleGit} from 'simple-git';
 import {compress} from '@mongodb-js/zstd';
-import {decode as msgpackDecoder} from 'msgpack-lite';
-import {decompress} from '@mongodb-js/zstd';
 
 export interface BaseVersionFile {
     _version: string;
     _fileName: string;
 }
 
-// =================================================================
-// 关键改动 1: 新增顶部常量，用于指定需要从历史数据中保护的日期
-// 格式为 'YYYY-MM-DD'，与 TrainDetailMap 的 key 格式保持一致
-// =================================================================
-const PROTECTED_HISTORY_DATES: string[] = [
-    '2025-10-24',
-];
-
 /**
- * 从 Gitee 仓库加载最新的历史数据，并将指定的日期数据合并到新的 result 中
+ * 将 TrainDetailMap 编码、压缩、保存到本地并推送到 Gitee 仓库。
+ * 注意：此函数不再处理历史数据合并。调用方应在调用此函数前，
+ *       使用 HistoryResultUtil 完成所需的历史数据合并。
  * @param __dirname 当前脚本目录
- * @param result 新获取的 TrainDetailMap
+ * @param result 最终要保存的 TrainDetailMap
  */
-async function loadAndMergeHistory(__dirname: string, result: TrainDetailMap): Promise<void> {
-    if (PROTECTED_HISTORY_DATES.length === 0) {
-        console.debug(`${logTime()} 没有配置需要保护的历史日期，跳过历史数据加载。`);
-        return;
-    }
-
-    console.log(`${logTime()} 开始加载历史数据以保护日期: ${PROTECTED_HISTORY_DATES.join(', ')}`);
-    const fileDir = path.join(__dirname, '..', 'data', 'gdcj-train-detail');
-    const tempRepoDir = path.join(fileDir, 'temp-repo-for-history');
-    const versionFileName = `gdcj.version.json`;
-
-    try {
-        // =================================================================
-        // 关键改动 2: 在读取历史数据前，先克隆仓库
-        // =================================================================
-        const git = simpleGit();
-        const giteeUrl = process.env.GITEE_URL;
-        if (!giteeUrl) {
-            throw new Error("GITEE_URL 环境变量未设置");
-        }
-
-        if (fs.existsSync(tempRepoDir)) {
-            fs.rmSync(tempRepoDir, {recursive: true, force: true});
-        }
-        await git.clone(giteeUrl, tempRepoDir);
-        console.debug(`${logTime()} 用于读取历史的仓库克隆完成。`);
-
-        // 读取版本文件
-        const versionFilePath = path.join(tempRepoDir, 'data', 'gdcj', versionFileName);
-        if (!fs.existsSync(versionFilePath)) {
-            console.warn(`${logTime()} 历史版本文件不存在: ${versionFilePath}。无法合并历史数据。`);
-            return;
-        }
-        const versionData: BaseVersionFile = JSON.parse(fs.readFileSync(versionFilePath, 'utf-8'));
-        const historyFileName = versionData._fileName;
-        console.debug(`${logTime()} 找到历史版本文件: ${historyFileName}`);
-
-        // 读取并解压历史数据文件
-        const historyFilePath = path.join(tempRepoDir, 'data', 'gdcj', historyFileName);
-        if (!fs.existsSync(historyFilePath)) {
-            console.warn(`${logTime()} 历史数据文件不存在: ${historyFilePath}。无法合并历史数据。`);
-            return;
-        }
-
-        const compressedHistoryData = fs.readFileSync(historyFilePath);
-        const msgpackBuffer = await decompress(compressedHistoryData);
-        const oldResult: TrainDetailMap = msgpackDecoder(msgpackBuffer);
-        console.debug(`${logTime()} 历史数据解压和解码完毕。`);
-
-        // 合并数据
-        let mergedCount = 0;
-        for (const dateKey of PROTECTED_HISTORY_DATES) {
-            if (oldResult[dateKey]) {
-                // 用历史数据覆盖新数据
-                result[dateKey] = oldResult[dateKey];
-                mergedCount++;
-                console.debug(`${logTime()} 已用历史数据覆盖日期: ${dateKey}`);
-            } else {
-                console.warn(`${logTime()} 在历史数据中未找到日期: ${dateKey} 的记录，无法覆盖。`);
-            }
-        }
-        console.log(`${logTime()} 历史数据合并完成，共覆盖 ${mergedCount} 个日期。`);
-
-    } catch (error) {
-        // =================================================================
-        // 关键改动 3: 做好异常捕获，不影响主流程
-        // =================================================================
-        console.error(`${logTime()} 加载或合并历史数据时发生错误，将使用本次获取的原始数据继续执行。错误详情:`, error);
-    } finally {
-        // 清理临时目录
-        if (fs.existsSync(tempRepoDir)) {
-            fs.rmSync(tempRepoDir, {recursive: true, force: true});
-            console.debug(`${logTime()} 用于读取历史的临时仓库已清理。`);
-        }
-    }
-}
-
-
-export async function encodeAndSave(__dirname, result: TrainDetailMap) {
-
+export async function encodeAndSave(__dirname: string, result: TrainDetailMap) {
     // =================================================================
-    // 关键改动 4: 在主流程最开始，调用历史数据合并函数
+    // 关键改动：移除了 loadAndMergeHistory 的调用。
+    // 历史数据的合并逻辑已完全解耦到 HistoryResultUtil 工具类中。
     // =================================================================
-    await loadAndMergeHistory(__dirname, result);
 
     const fileDir = path.join(__dirname, '..', 'data', 'gdcj-train-detail'); // 当前在script目录，要..到data目录
 
-    const versionString = getBeijingDateTime()
+    const versionString = getBeijingDateTime();
     const fileName = `gdcj.${versionString}.msgpack.zst`;
     const fileNameVersion = `gdcj.version.json`;
 
@@ -127,7 +40,7 @@ export async function encodeAndSave(__dirname, result: TrainDetailMap) {
     const msgpackBuffer = msgpackEncoder(result);
     console.debug(`${logTime()} 数据保存：pack编码完毕`);
 
-    let compressedData
+    let compressedData;
     if (false) {
         compressedData = pako.gzip(msgpackBuffer); // gz版本
     } else {
@@ -141,10 +54,10 @@ export async function encodeAndSave(__dirname, result: TrainDetailMap) {
     console.debug(`${logTime()} 数据保存：文件写入完毕，文件名=${fileName}, 路径=${filePath}`);
 
     // 写入版本文件
-    const versionData = {
+    const versionData: BaseVersionFile = {
         _version: versionString,
         _fileName: fileName
-    } as BaseVersionFile;
+    };
     const filePathVer = path.join(fileDir, fileNameVersion);
     fs.writeFileSync(filePathVer, JSON.stringify(versionData));
     console.debug(`${logTime()} 数据保存：文件写入完毕，文件名=${fileNameVersion}, 路径=${filePathVer}`);
@@ -161,6 +74,11 @@ export async function encodeAndSave(__dirname, result: TrainDetailMap) {
  * @param versionFileName 版本文件名
  */
 async function pushToGiteeRepo(gzFilePath: string, gzFileName: string, versionFilePath: string, versionFileName: string) {
+    if (isTest) {
+        console.debug(`测试模式下 数据不推送到 gitee 结束`)
+        return
+    }
+
     try {
         console.debug(`${logTime()} 开始推送到 Gitee 仓库`);
 
@@ -173,7 +91,7 @@ async function pushToGiteeRepo(gzFilePath: string, gzFileName: string, versionFi
         }
 
         // 克隆 Gitee 仓库
-        const git = simpleGit();
+        const git: SimpleGit = simpleGit();
         // https://用户名:GITEE_TOKEN@gitee.com/用户名/仓库名.git
         const giteeUrl = process.env.GITEE_URL;
         if (!giteeUrl) {
@@ -183,7 +101,7 @@ async function pushToGiteeRepo(gzFilePath: string, gzFileName: string, versionFi
         console.debug(`${logTime()} Gitee 仓库克隆完成`);
 
         // 切换到克隆的仓库目录
-        const repoGit = simpleGit(tempDir);
+        const repoGit: SimpleGit = simpleGit(tempDir);
 
         // 确保 /data/gdcj 目录存在
         const targetDir = path.join(tempDir, 'data', 'gdcj');

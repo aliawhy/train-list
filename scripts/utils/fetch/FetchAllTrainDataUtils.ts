@@ -143,7 +143,6 @@ export class FetchAllTrainDataUtils {
     }
 }
 
-
 function checkTrainInfosEqual(arr1: TrainInfo[], arr2: TrainInfo[]): boolean {
     // 首先检查长度是否相同
     if (!arr1 || !arr2 || arr1.length !== arr2.length) {

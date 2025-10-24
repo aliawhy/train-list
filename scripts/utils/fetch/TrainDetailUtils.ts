@@ -1,4 +1,5 @@
 import fetch from 'node-fetch';
+import {HistoryResultUtil} from "../history/HistoryResultUtil";
 
 export interface StopTime {
     // 停靠站
@@ -68,8 +69,13 @@ export class TrainDetailUtils {
         try {
             startDay = startDay.replace(/-/g, ''); // 转换为需要的格式
 
-            const data = await TrainDetailUtils.queryTrainDetail(trainCode, startDay);
-            const result: TrainDetail = data?.data?.trainDetail || {} as TrainDetail;
+            let result = HistoryResultUtil.getTrainDetail(startDay, trainCode);
+            if (!result?.stopTime?.length) {
+                console.debug(`历史数据中 列车${trainCode}, ${startDay} 详情为空`)
+                const data = await TrainDetailUtils.queryTrainDetail(trainCode, startDay);
+                result = data?.data?.trainDetail || {} as TrainDetail;
+            }
+
             result.stopTime = result.stopTime || [];
             if (result.stopTime.length === 0) {
                 console.debug(`列车${trainCode}, ${startDay}停靠数量为${result.stopTime.length}`)

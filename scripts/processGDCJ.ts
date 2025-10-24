@@ -5,6 +5,7 @@ import {getBeiJingDateStr, getDayOfWeek, getNextWeekdayBeijingDateStr} from "./u
 import {TrainDetail} from "./utils/fetch/TrainDetailUtils";
 import {randomDelay} from "./utils/delay/DelayUtil";
 import {encodeAndSave} from "./utils/file/FileUtils";
+import {HistoryResultUtil} from "./utils/history/HistoryResultUtil";
 
 // 获取当前文件的目录路径
 const __filename = fileURLToPath(import.meta.url);
@@ -147,6 +148,11 @@ async function getTrainDetailsForQueryDays() {
         const trainDay = queryDays[i];
         console.log(`开始更新日期 ${trainDay} 的数据`);
 
+        if (HistoryResultUtil.isProtectedDateFromHistory(trainDay)) {
+            console.log(`日期 ${trainDay} 使用历史数据，不需要更新，跳过`);
+            continue
+        }
+
         try {
             await randomDelay(1000, 3000); // 每天查询间隔几秒钟
             const trainDetails = await FetchAllTrainDataUtils.fetchTrainDetails(trainDay);
@@ -183,6 +189,11 @@ async function updateRealTimeData() {
 export const isTest = false // 测试时 只下载少量车
 
 async function main() {
+    try {
+        await HistoryResultUtil.initialize(__dirname);
+    } catch (err) {
+        console.error(`初始化历史数据失败`)
+    }
     try {
         // 更新实时数据并获取最后一个周内和周末数据
         await updateRealTimeData();

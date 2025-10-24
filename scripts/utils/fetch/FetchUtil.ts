@@ -9,12 +9,12 @@ export class FetchUtil {
                 method: 'GET',
                 headers: {
                     'Accept': 'application/json, text/plain, */*',
-                    'Authorization': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpblRpbWUiOiIxNzU5MDgxNzk5MzIxIiwidXNlcm5hbWUiOiJvYm1hZjY5b3J1cmxuLXJ0N3B1enJnZHBpcy1hIn0.AUQ64DX3VSg4BITX3P54xLzpB7Q7jGVwJX0VIUBVM0E',
-                    'Sec-Fetch-Site': 'same-origin',
-                    'Sec-Fetch-Mode': 'cors',
-                    'Sec-Fetch-Dest': 'empty',
-                    'Referer': 'https://gdcj.gzmtr.com/wxMetro/yyskb/schedule.html',
-                    'Accept-Language': 'zh-CN,zh;q=0.9'
+                    // 'Authorization': 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJsb2dpblRpbWUiOiIxNzU5MDgxNzk5MzIxIiwidXNlcm5hbWUiOiJvYm1hZjY5b3J1cmxuLXJ0N3B1enJnZHBpcy1hIn0.AUQ64DX3VSg4BITX3P54xLzpB7Q7jGVwJX0VIUBVM0E',
+                    // 'Sec-Fetch-Site': 'same-origin',
+                    // 'Sec-Fetch-Mode': 'cors',
+                    // 'Sec-Fetch-Dest': 'empty',
+                    // 'Referer': 'https://gdcj.gzmtr.com/wxMetro/yyskb/schedule.html',
+                    // 'Accept-Language': 'zh-CN,zh;q=0.9'
                 }
             });
 
