@@ -53,8 +53,8 @@ export class TrainDetailUtils {
         // const responseText = await response.text();
 
         const formData = new URLSearchParams();
-        formData.append('trainCode', 'trainCode');
-        formData.append('startDay', 'startDay');
+        formData.append('trainCode', trainCode);
+        formData.append('startDay', startDay);
 
         const responseText = await FetchUtil.post(baseUrl, formData, {
             json: false
