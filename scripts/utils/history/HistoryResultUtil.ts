@@ -102,7 +102,7 @@ export class HistoryResultUtil {
 
             // 4. 构建内部查询索引
             this.buildInternalIndex();
-            console.log(`${logTime()} [HistoryResultUtil] 初始化完成，共加载 ${Object.keys(this.oldResult).length} 天的数据。`);
+            console.log(`${logTime()} [HistoryResultUtil] 初始化完成，共加载 ${Object.keys(this.oldResult).join(",")} 的数据。`, );
             this.isInitialized = true;
 
         } catch (error) {

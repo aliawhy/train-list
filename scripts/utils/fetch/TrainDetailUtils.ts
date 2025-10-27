@@ -86,11 +86,32 @@ export class TrainDetailUtils {
                 await randomDelay(500, 1000);
                 const data = await TrainDetailUtils.queryTrainDetail(trainCode, startDay);
                 result = data?.data?.trainDetail || {} as TrainDetail;
+
+                result.stopTime = result.stopTime || [];
+                if (result.stopTime.length === 0) {
+                    console.debug(`列车${trainCode}, ${startDay}停靠数量为0，进行第2次查询`)
+
+                    await randomDelay(1000, 2000);
+                    const data = await TrainDetailUtils.queryTrainDetail(trainCode, startDay);
+                    result = data?.data?.trainDetail || {} as TrainDetail;
+
+                    result.stopTime = result.stopTime || [];
+                    if (result.stopTime.length === 0) {
+                        console.debug(`列车${trainCode}, ${startDay}停靠数量为0，进行第3次查询`)
+
+                        await randomDelay(1000, 2000);
+                        const data = await TrainDetailUtils.queryTrainDetail(trainCode, startDay);
+                        result = data?.data?.trainDetail || {} as TrainDetail;
+
+                        result.stopTime = result.stopTime || [];
+                    }
+                }
+
             }
 
             result.stopTime = result.stopTime || [];
             if (result.stopTime.length === 0) {
-                console.debug(`列车${trainCode}, ${startDay}停靠数量为${result.stopTime.length}`)
+                console.debug(`列车${trainCode}, ${startDay}停靠数量为0`)
             }
 
             for (let i = 0; i < result.stopTime.length; i++) {
