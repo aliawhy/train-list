@@ -172,11 +172,11 @@ export async function mergeTrackingDataAndPushToDatabaseRepo(
         }
 
         const git = simpleGit();
-        if (!process.env.GITEE_MINI_DATABASE_URL) {
-            throw new Error('GITEE_MINI_DATABASE_URL environment variable is not set.');
+        if (!process.env.MY_GITHUB_MINI_DATABASE_URL) {
+            throw new Error('MY_GITHUB_MINI_DATABASE_URL environment variable is not set.');
         }
-        await git.clone(process.env.GITEE_MINI_DATABASE_URL, tempDir);
-        console.debug(`${logTime()} Gitee 下载仓库克隆完成`);
+        await git.clone(process.env.MY_GITHUB_MINI_DATABASE_URL, tempDir);
+        console.debug(`${logTime()} 仓库克隆完成`);
 
         const repoGit = simpleGit(tempDir);
         await repoGit.addConfig('user.email', 'action@github.com');

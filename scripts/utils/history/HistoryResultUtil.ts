@@ -66,9 +66,9 @@ export class HistoryResultUtil {
         const versionFileName = `gdcj.version.json`;
 
         try {
-            const giteeUrl = process.env.GITEE_TRAIN_LIST_URL;
-            if (!giteeUrl) {
-                throw new Error("GITEE_TRAIN_LIST_URL 环境变量未设置");
+            const gitRepoUrl = process.env.MY_GITHUB_TRAIN_LIST_URL;
+            if (!gitRepoUrl) {
+                throw new Error("MY_GITHUB_TRAIN_LIST_URL 环境变量未设置");
             }
 
             // 1. 克隆仓库
@@ -76,7 +76,7 @@ export class HistoryResultUtil {
             if (fs.existsSync(tempRepoDir)) {
                 fs.rmSync(tempRepoDir, {recursive: true, force: true});
             }
-            await git.clone(giteeUrl, tempRepoDir);
+            await git.clone(gitRepoUrl, tempRepoDir);
             console.debug(`${logTime()} [HistoryResultUtil] 历史仓库克隆完成。`);
 
             // 2. 读取版本文件，找到数据文件名

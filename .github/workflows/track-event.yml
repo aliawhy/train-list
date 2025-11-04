@@ -36,37 +36,34 @@ jobs:
         run: npm ci
 
       # =======================================================
-      # 👇 新增的验证步骤 (带超时) 👇
+      # 👇 修改后的验证步骤 (非阻塞式，中文日志) 👇
       # =======================================================
       - name: Verify Gitee Accessibility
+        id: gitee-check # 给这个步骤一个ID，方便后续步骤引用它的输出
         run: |
-          echo "🔍 Verifying Gitee accessibility from the runner..."
+          echo "🔍 正在验证当前 Runner 对 Gitee 的访问能力..."
           
-          # 设置超时参数
-          # --connect-timeout 10: 10秒内必须连接成功
-          # -m 15: 整个请求在15秒内必须完成
-          # -s: 静默模式
-          # -o /dev/null: 丢弃响应体
-          # -I: 只获取头部信息
-          # -w "%{http_code}": 只输出HTTP状态码
+          # 默认设置为不可访问
+          GITEE_ACCESSIBLE="false"
+          
           HTTP_STATUS=$(curl -s -o /dev/null -I -w "%{http_code}" --connect-timeout 10 -m 15 https://gitee.com)
           
-          # 检查 curl 命令本身是否因为超时或网络错误而失败 (返回码非0)
-          if [ $? -ne 0 ]; then
-            echo "❌ Verification failed! curl command timed out or encountered a network error."
-            echo "❌ This runner's IP is likely blocked or cannot reach Gitee reliably."
-            exit 1
+          # 检查 curl 命令本身是否成功
+          if [ $? -eq 0 ] && [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "✅ 验证成功！Gitee 可正常访问 (HTTP 200)。"
+            GITEE_ACCESSIBLE="true"
+          else
+            echo "⚠️ 警告：无法访问 Gitee。"
+            if [ $? -ne 0 ]; then
+              echo "⚠️ 原因：curl 命令超时或遇到网络错误。"
+            else
+              echo "⚠️ 原因：Gitee 返回的 HTTP 状态码为: $HTTP_STATUS"
+            fi
+            echo "⚠️ 后续需要访问 Gitee 的步骤将被跳过。"
           fi
           
-          # 检查 HTTP 状态码
-          if [ "$HTTP_STATUS" -ne 200 ]; then
-            echo "❌ Verification failed!"
-            echo "❌ Gitee returned HTTP status: $HTTP_STATUS"
-            echo "❌ This runner's IP is likely blocked by Gitee."
-            exit 1
-          else
-            echo "✅ Verification successful! Gitee is accessible (HTTP 200)."
-          fi
+          # 将结果设置为环境变量，并输出到后续步骤
+          echo "GITEE_ACCESSIBLE=$GITEE_ACCESSIBLE" >> $GITHUB_ENV
       # =======================================================
 
       - name: Run test script

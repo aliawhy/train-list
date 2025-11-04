@@ -236,11 +236,11 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
         // 克隆下载仓库
         const git = simpleGit();
-        if (!process.env.GITEE_MINI_DATA_DOWNLOADER_URL) {
-            throw new Error('GITEE_MINI_DATA_DOWNLOADER_URL environment variable is not set.');
+        if (!process.env.MY_GITHUB_MINI_DATA_DOWNLOADER_URL) {
+            throw new Error('MY_GITHUB_MINI_DATA_DOWNLOADER_URL environment variable is not set.');
         }
-        await git.clone(process.env.GITEE_MINI_DATA_DOWNLOADER_URL, tempDir);
-        console.debug(`${logTime()} Gitee 下载仓库克隆完成`);
+        await git.clone(process.env.MY_GITHUB_MINI_DATA_DOWNLOADER_URL, tempDir);
+        console.debug(`${logTime()} 下载仓库克隆完成`);
 
         // 切换到克隆的仓库目录
         const repoGit = simpleGit(tempDir);
@@ -462,7 +462,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
 /**
  * 备份前一天的数据到固定的备份分支，保存到数据仓库
- * 备份数据不需要公开下载，因此调整仓库为 GITEE_MINI_DATABASE_URL 这个仓库是私密的。 这样数据安全。
+ * 备份数据不需要公开下载，因此调整仓库为 MY_GITHUB_MINI_DATABASE_URL 这个仓库是私密的。 这样数据安全。
  * 注意：此函数会独立克隆和操作数据库仓库，不与下载仓库的目录或Git实例冲突。
  *
  * @param dataToBackup 需要备份的原始数据
@@ -487,8 +487,8 @@ async function backupPreviousDayDataToDatabaseRepo(
         console.log(`${logTime()} 检测到跨天，开始备份前一天(${yesterdayBeijingDate})的数据到私密数据库仓库`);
 
         // 检查环境变量
-        if (!process.env.GITEE_MINI_DATABASE_URL) {
-            throw new Error('GITEE_MINI_DATABASE_URL environment variable is not set for backup.');
+        if (!process.env.MY_GITHUB_MINI_DATABASE_URL) {
+            throw new Error('MY_GITHUB_MINI_DATABASE_URL environment variable is not set for backup.');
         }
 
         // 如果临时目录已存在，先删除
@@ -498,7 +498,7 @@ async function backupPreviousDayDataToDatabaseRepo(
 
         // 克隆数据库仓库
         const git = simpleGit();
-        await git.clone(process.env.GITEE_MINI_DATABASE_URL, databaseRepoTempDir);
+        await git.clone(process.env.MY_GITHUB_MINI_DATABASE_URL, databaseRepoTempDir);
         console.debug(`${logTime()} 私密数据库仓库克隆完成`);
 
         // 切换到克隆的数据库仓库目录
