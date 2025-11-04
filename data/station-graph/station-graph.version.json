@@ -1,0 +1,89 @@
+{
+  "_version": "20250925163424",
+  "_fileName": "station-graph.20250925163424.msgpack.zst",
+  "stationTrains": {
+    "start": 0,
+    "end": 104772,
+    "size": 104773
+  },
+  "trainStations": {
+    "start": 104773,
+    "end": 205091,
+    "size": 100319
+  },
+  "directGraph0": {
+    "start": 205092,
+    "end": 484148,
+    "size": 279057
+  },
+  "directGraph1": {
+    "start": 484149,
+    "end": 751043,
+    "size": 266895
+  },
+  "directGraph2": {
+    "start": 751044,
+    "end": 1095675,
+    "size": 344632
+  },
+  "directGraph3": {
+    "start": 1095676,
+    "end": 1358904,
+    "size": 263229
+  },
+  "directGraph4": {
+    "start": 1358905,
+    "end": 1651701,
+    "size": 292797
+  },
+  "connectionsMap0": {
+    "start": 1651702,
+    "end": 2082271,
+    "size": 430570
+  },
+  "connectionsMap1": {
+    "start": 2082272,
+    "end": 2511021,
+    "size": 428750
+  },
+  "connectionsMap2": {
+    "start": 2511022,
+    "end": 2944490,
+    "size": 433469
+  },
+  "connectionsMap3": {
+    "start": 2944491,
+    "end": 3375761,
+    "size": 431271
+  },
+  "connectionsMap4": {
+    "start": 3375762,
+    "end": 3800849,
+    "size": 425088
+  },
+  "connectionsMap5": {
+    "start": 3800850,
+    "end": 4229277,
+    "size": 428428
+  },
+  "connectionsMap6": {
+    "start": 4229278,
+    "end": 4659837,
+    "size": 430560
+  },
+  "connectionsMap7": {
+    "start": 4659838,
+    "end": 5090328,
+    "size": 430491
+  },
+  "connectionsMap8": {
+    "start": 5090329,
+    "end": 5513247,
+    "size": 422919
+  },
+  "connectionsMap9": {
+    "start": 5513248,
+    "end": 5940882,
+    "size": 427635
+  }
+}

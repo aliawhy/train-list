@@ -33,54 +33,51 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # =======================================================
+      # 👇 新增的验证步骤 (带超时) 👇
+      # =======================================================
+      - name: Verify Gitee Accessibility
+        run: |
+          echo "🔍 Verifying Gitee accessibility from the runner..."
+          
+          # 设置超时参数
+          # --connect-timeout 10: 10秒内必须连接成功
+          # -m 15: 整个请求在15秒内必须完成
+          # -s: 静默模式
+          # -o /dev/null: 丢弃响应体
+          # -I: 只获取头部信息
+          # -w "%{http_code}": 只输出HTTP状态码
+          HTTP_STATUS=$(curl -s -o /dev/null -I -w "%{http_code}" --connect-timeout 10 -m 15 https://gitee.com)
+          
+          # 检查 curl 命令本身是否因为超时或网络错误而失败 (返回码非0)
+          if [ $? -ne 0 ]; then
+            echo "❌ Verification failed! curl command timed out or encountered a network error."
+            echo "❌ This runner's IP is likely blocked or cannot reach Gitee reliably."
+            exit 1
+          fi
+          
+          # 检查 HTTP 状态码
+          if [ "$HTTP_STATUS" -ne 200 ]; then
+            echo "❌ Verification failed!"
+            echo "❌ Gitee returned HTTP status: $HTTP_STATUS"
+            echo "❌ This runner's IP is likely blocked by Gitee."
+            exit 1
+          else
+            echo "✅ Verification successful! Gitee is accessible (HTTP 200)."
+          fi
+      # =======================================================
+
       - name: Run test script
         env:
           API_T: ${{ secrets.API_T }}
           API_D: ${{ secrets.API_D }}
-          GITEE_URL: ${{ secrets.GITEE_URL }}
-        run: npx tsx scripts/processGDCJ.ts
+          GITEE_TRAIN_LIST_URL: ${{ secrets.GITEE_TRAIN_LIST_URL }}
+          GITEE_MINI_DATA_UPLOADER_URL: ${{ secrets.GITEE_MINI_DATA_UPLOADER_URL }}
+          GITEE_MINI_DATA_DOWNLOADER_URL: ${{ secrets.GITEE_MINI_DATA_DOWNLOADER_URL }}
+          GITEE_MINI_DATABASE_URL: ${{ secrets.GITEE_MINI_DATABASE_URL }}
 
-#      - name: Commit and push changes
-#        run: |
-#          git config --local user.email "action@github.com"
-#          git config --local user.name "GitHub Action"
-#          # 设置时区为北京时间
-#          export TZ="Asia/Shanghai"
-#          # 获取北京时区的日期
-#          BEIJING_DATE=$(date '+%Y-%m-%d')
-#          # 添加所有变化
-#          git add data/
-#          # 检查是否有变化
-#          if git diff --staged --quiet; then
-#            echo "No changes to commit."
-#          else
-#            # 获取当天已有的tag数量
-#            EXISTING_TAGS=$(git tag -l "gdcj-train-detail-$BEIJING_DATE-*" | wc -l)
-#            # 计算新tag的序号（现有数量+1）
-#            TAG_NUMBER=$((EXISTING_TAGS + 1))
-#            # 创建新tag名称
-#            NEW_TAG="gdcj-train-detail-$BEIJING_DATE-$TAG_NUMBER"
-#
-#            # commit和推送
-#            git commit -m "Update data directory for $BEIJING_DATE (#$TAG_NUMBER)"
-#            git push
-#            echo "Created commit for $BEIJING_DATE"
-#          fi
-#
-#      - name: Create daily tag
-#        run: |
-#          # 设置时区为北京时间
-#          export TZ="Asia/Shanghai"
-#          # 获取北京时区的日期
-#          BEIJING_DATE=$(date '+%Y-%m-%d')
-#          # 获取当天已有的tag数量
-#          EXISTING_TAGS=$(git tag -l "gdcj-train-detail-$BEIJING_DATE-*" | wc -l)
-#          # 计算新tag的序号（现有数量+1）
-#          TAG_NUMBER=$((EXISTING_TAGS + 1))
-#          # 创建新tag名称
-#          NEW_TAG="gdcj-train-detail-$BEIJING_DATE-$TAG_NUMBER"
-#
-#          # 创建tag
-#          git tag -a "$NEW_TAG" -m "Daily update for $BEIJING_DATE (#$TAG_NUMBER)"
-#          git push origin "$NEW_TAG"
-#          echo "Created tag: $NEW_TAG"
+          MY_GITHUB_TRAIN_LIST_URL: ${{ secrets.MY_GITHUB_TRAIN_LIST_URL }}
+          MY_GITHUB_MINI_DATA_UPLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_UPLOADER_URL }}
+          MY_GITHUB_MINI_DATA_DOWNLOADER_URL: ${{ secrets.MY_GITHUB_MINI_DATA_DOWNLOADER_URL }}
+          MY_GITHUB_MINI_DATABASE_URL: ${{ secrets.MY_GITHUB_MINI_DATABASE_URL }}
+        run: npx tsx scripts/processGDCJ.ts

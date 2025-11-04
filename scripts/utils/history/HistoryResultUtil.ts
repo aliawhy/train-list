@@ -66,9 +66,9 @@ export class HistoryResultUtil {
         const versionFileName = `gdcj.version.json`;
 
         try {
-            const giteeUrl = process.env.GITEE_URL;
+            const giteeUrl = process.env.GITEE_TRAIN_LIST_URL;
             if (!giteeUrl) {
-                throw new Error("GITEE_URL 环境变量未设置");
+                throw new Error("GITEE_TRAIN_LIST_URL 环境变量未设置");
             }
 
             // 1. 克隆仓库

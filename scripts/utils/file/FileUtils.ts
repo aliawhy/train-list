@@ -93,9 +93,9 @@ async function pushToGiteeRepo(gzFilePath: string, gzFileName: string, versionFi
         // 克隆 Gitee 仓库
         const git: SimpleGit = simpleGit();
         // https://用户名:GITEE_TOKEN@gitee.com/用户名/仓库名.git
-        const giteeUrl = process.env.GITEE_URL;
+        const giteeUrl = process.env.GITEE_TRAIN_LIST_URL;
         if (!giteeUrl) {
-            throw new Error("GITEE_URL 环境变量未设置");
+            throw new Error("GITEE_TRAIN_LIST_URL 环境变量未设置");
         }
         await git.clone(giteeUrl, tempDir);
         console.debug(`${logTime()} Gitee 仓库克隆完成`);
