@@ -291,7 +291,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
             }
 
             // 切换回主分支
-            await repoGit.checkout(GITEE_MASTER_BRANCH);
+            await repoGit.checkout(GITHUB_MASTER_BRANCH);
         }
 
         // 获取当前北京日期字符串
@@ -428,7 +428,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
             await safeWriteToBranch({
                 repoGit: repoGit,
                 tempDir: tempDir,
-                masterBranch: GITEE_MASTER_BRANCH,
+                masterBranch: GITHUB_MASTER_BRANCH,
                 branchName: newBranchName,
                 needBackup: false, // 合并上报数据，到下载新分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
                 filePathInRepo: filePathInRepo,
@@ -514,7 +514,7 @@ async function backupPreviousDayDataToDatabaseRepo(
         await safeWriteToBranch({
             repoGit: dbRepoGit,
             tempDir: databaseRepoTempDir,
-            masterBranch: GITEE_MASTER_BRANCH,
+            masterBranch: GITHUB_MASTER_BRANCH,
             branchName: backupBranchName,
             needBackup: true, // 每日备份前一天的流程 需要备份历史文件，因为我们把所有文件放到一个分支里了
             filePathInRepo: filePathInRepo,
@@ -576,7 +576,7 @@ async function updateVersionBranch(
         await safeWriteToBranch({
             repoGit: repoGit,
             tempDir: tempDir,
-            masterBranch: GITEE_MASTER_BRANCH,
+            masterBranch: GITHUB_MASTER_BRANCH,
             branchName: versionBranchName,
             needBackup: false, // 创建新下载版本分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
             filePathInRepo: filePathInRepo,

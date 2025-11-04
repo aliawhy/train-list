@@ -195,7 +195,7 @@ export async function mergeTrackingDataAndPushToDatabaseRepo(
             await safeWriteToBranch({
                     repoGit: repoGit,
                     tempDir: tempDir,
-                    masterBranch: GITEE_MASTER_BRANCH,
+                    masterBranch: GITHUB_MASTER_BRANCH,
                     branchName: branchName,
                     needBackup: true, // 更新埋点数据，需要备份历史文件， 因为我们是把每天的文件写到一个分支里，几个月左右 请手动提取一下，或者后续再优化
                     filePathInRepo: filePathInRepo,
