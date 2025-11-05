@@ -8,10 +8,10 @@ import {compress, decompress} from '@mongodb-js/zstd';
 import {BaseVersionFile} from "./utils/file/FileUtils";
 import {allStationsSet} from "./utils/rail-net/railNetChecker";
 import {safeWriteToBranch} from "./utils/git/GitBranchSaveWriteUtils";
+import {APP_NAME, BASE_GITEE_DOWNLOAD_RAW_URL} from "./utils/app-env/app-env-url";
 
 // 主分支名称常量
 const GITHUB_MASTER_BRANCH = 'main';
-const GITEE_MASTER_BRANCH = 'master';
 
 export interface TrainReportParams {
     userUuid: string;
@@ -253,7 +253,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
         const allBranches = branchesResult.all;
         console.debug(`${logTime()} 获取到下载仓库所有分支数量:${allBranches.length}`);
 
-        const downloadType = 'train-delay-download';
+        const downloadType = `${APP_NAME}-train-report-msg`;
 
         // 查找现有的下载分支 (修改：只查找以downloadType开头的分支)
         const existingDownloadBranches = allBranches.filter(branch =>
@@ -419,17 +419,17 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
             const fileName = `${downloadType}.msgpack.zst`;
             const fileContent = compressedData;
-            const filePathInRepo = `${downloadType}/${fileName}`;
+            const filePathInRepo = `data/${fileName}`;
 
             // 定义新分支名
-            const newBranchName = `${downloadType}_${getBeijingDateTime()}_${Date.now()}`;
+            const newDataBranchName = `data_${downloadType}_${getBeijingDateTime()}_${Date.now()}`;
 
             // 使用公共函数安全地写入新分支，该函数会处理旧分支的删除
             await safeWriteToBranch({
                 repoGit: repoGit,
                 tempDir: tempDir,
                 masterBranch: GITHUB_MASTER_BRANCH,
-                branchName: newBranchName,
+                branchName: newDataBranchName,
                 needBackup: false, // 合并上报数据，到下载新分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
                 filePathInRepo: filePathInRepo,
                 fileContent: fileContent,
@@ -439,7 +439,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
             console.debug(`${logTime()} 新分支已推送到远程仓库`);
 
             // ===== 新增逻辑：更新版本分支 =====
-            await updateVersionBranch(repoGit, tempDir, downloadType, newBranchName, filePathInRepo);
+            await updateVersionBranch(repoGit, tempDir, downloadType, newDataBranchName, filePathInRepo, fileName);
             // ===============================
         }
 
@@ -542,33 +542,35 @@ async function backupPreviousDayDataToDatabaseRepo(
  * @param repoGit Git实例
  * @param tempDir 仓库临时目录
  * @param downloadType 下载类型
- * @param newBranchName 新创建的数据分支名
- * @param newFileName 新创建的数据压缩文件相对路径
+ * @param newDataBranchName 新创建的数据分支名
+ * @param newDataFilePathAndName 新创建的数据压缩文件相对路径
  */
 async function updateVersionBranch(
     repoGit: simpleGit.SimpleGit,
     tempDir: string,
     downloadType: string,
-    newBranchName: string,
-    newFileName: string
+    newDataBranchName: string,
+    newDataFilePathAndName: string,
+    newDataFileName: string
 ): Promise<void> {
     const versionBranchName = `version_${downloadType}`;
-    const fileNameVersion = `${downloadType}.version.json`;
+    const versionFileName = `${downloadType}.version.json`;
     // 文件在仓库中的路径，相对于仓库根目录
-    const filePathInRepo = `version/${fileNameVersion}`;
+    const filePathInRepo = `version/${versionFileName}`;
 
     console.debug(`${logTime()} 开始更新版本分支: ${versionBranchName}`);
 
     try {
         // 准备要写入的版本文件内容
         const versionData = {
-            _version: newBranchName,
-            _fileName: newFileName,
+            _version: newDataBranchName,
+            _fileName: newDataFileName,
+            _dataUrl: `${BASE_GITEE_DOWNLOAD_RAW_URL}/${newDataBranchName}/data/${newDataFileName}`
         } as BaseVersionFile;
         const fileContent = JSON.stringify(versionData, null, 2);
 
         // 准备提交信息
-        const commitMessage = `Update version info to ${newBranchName} - ${new Date().toISOString()}`;
+        const commitMessage = `Update version info to ${newDataBranchName} - ${new Date().toISOString()}`;
 
         console.debug(`${logTime()} 准备通过 safeWriteToBranch 更新版本文件: ${filePathInRepo}`);
 

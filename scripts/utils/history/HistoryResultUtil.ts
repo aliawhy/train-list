@@ -7,6 +7,7 @@ import {logTime} from "../log/LogUtils";
 import {TrainDetailMap} from "../../processGDCJ";
 import {TrainDetail} from "../fetch/TrainDetailUtils";
 import {BaseVersionFile} from "../file/FileUtils";
+import {APP_NAME} from "../app-env/app-env-url";
 
 // =================================================================
 // 2. 历史数据工具类 (全局静态)
@@ -50,6 +51,27 @@ export class HistoryResultUtil {
     }
 
     /**
+     * 检查远程仓库中是否存在指定的分支。
+     * @param gitRepoUrl Git 仓库 URL
+     * @param branchName 要检查的分支名
+     * @returns 如果分支存在则返回 true，否则返回 false
+     * @private
+     */
+    // --- 修改点 1: 新增私有方法用于检查远程分支是否存在 ---
+    private static async checkBranchExists(gitRepoUrl: string, branchName: string): Promise<boolean> {
+        try {
+            // 使用 ls-remote 查询远程仓库的引用，并过滤出我们想要的分支
+            // `refs/heads/${branchName}` 是分支在远程仓库中的完整路径
+            const remoteRefs = await simpleGit().listRemote(['--refs', gitRepoUrl, `refs/heads/${branchName}`]);
+            // 如果返回结果不为空，说明分支存在
+            return remoteRefs.trim().length > 0;
+        } catch (error) {
+            console.error(`${logTime()} [HistoryResultUtil] 检查分支 ${branchName} 时发生错误:`, error);
+            return false;
+        }
+    }
+
+    /**
      * 初始化工具类，从 Gitee 仓库加载并解析历史数据。
      * 此方法是幂等的，多次调用也只会在第一次执行加载逻辑。
      * @param __dirname 当前脚本目录，用于定位临时文件路径
@@ -61,40 +83,81 @@ export class HistoryResultUtil {
         }
 
         console.log(`${logTime()} [HistoryResultUtil] 开始初始化，准备加载历史数据...`);
-        const fileDir = path.join(__dirname, '..', 'data', 'gdcj-train-detail');
-        const tempRepoDir = path.join(fileDir, 'temp-repo-for-history-util');
-        const versionFileName = `gdcj.version.json`;
+
+        const versionBranchName = `version_${APP_NAME}-gdcj-train-detail`;
+        const dataBranchName = `data_${APP_NAME}-gdcj-train-detail`;
+        const versionFileName = `${APP_NAME}-gdcj-train-detail.version.json`;
+
+        const baseTempDir = path.join(__dirname, '..', 'temp-for-history-util');
+        const tempVersionRepoDir = path.join(baseTempDir, 'version-repo');
+        const tempDataRepoDir = path.join(baseTempDir, 'data-repo');
+
+        if (!fs.existsSync(baseTempDir)) {
+            fs.mkdirSync(baseTempDir, {recursive: true});
+        }
 
         try {
-            const gitRepoUrl = process.env.MY_GITHUB_TRAIN_LIST_URL;
+            const gitRepoUrl = process.env.MY_GITHUB_MINI_DATA_DOWNLOADER_URL;
             if (!gitRepoUrl) {
-                throw new Error("MY_GITHUB_TRAIN_LIST_URL 环境变量未设置");
+                throw new Error("MY_GITHUB_MINI_DATA_DOWNLOADER_URL 环境变量未设置");
             }
 
-            // 1. 克隆仓库
+            // --- 修改点 2: 在克隆 version 分支前，先检查其是否存在 ---
+            console.debug(`${logTime()} [HistoryResultUtil] 正在检查远程分支 ${versionBranchName} 是否存在...`);
+            const versionBranchExists = await this.checkBranchExists(gitRepoUrl, versionBranchName);
+            if (!versionBranchExists) {
+                console.warn(`${logTime()} [HistoryResultUtil] 远程分支 ${versionBranchName} 不存在。无法加载历史数据。`);
+                this.isInitialized = true; // 标记为已尝试，避免重复失败
+                return;
+            }
+            console.debug(`${logTime()} [HistoryResultUtil] 远程分支 ${versionBranchName} 存在。`);
+
+            // 1. 克隆 version 分支并读取版本文件
+            console.debug(`${logTime()} [HistoryResultUtil] 正在克隆 ${versionBranchName} 分支以获取版本信息...`);
             const git: SimpleGit = simpleGit();
-            if (fs.existsSync(tempRepoDir)) {
-                fs.rmSync(tempRepoDir, {recursive: true, force: true});
+            if (fs.existsSync(tempVersionRepoDir)) {
+                fs.rmSync(tempVersionRepoDir, {recursive: true, force: true});
             }
-            await git.clone(gitRepoUrl, tempRepoDir);
-            console.debug(`${logTime()} [HistoryResultUtil] 历史仓库克隆完成。`);
+            await git.clone(gitRepoUrl, tempVersionRepoDir, ['--branch', versionBranchName, '--single-branch']);
+            console.debug(`${logTime()} [HistoryResultUtil] ${versionBranchName} 分支克隆完成。`);
 
-            // 2. 读取版本文件，找到数据文件名
-            const versionFilePath = path.join(tempRepoDir, 'data', 'gdcj', versionFileName);
+            const versionFilePath = path.join(tempVersionRepoDir, 'version', versionFileName);
             if (!fs.existsSync(versionFilePath)) {
                 console.warn(`${logTime()} [HistoryResultUtil] 历史版本文件不存在: ${versionFilePath}。初始化失败。`);
+                this.isInitialized = true;
                 return;
             }
             const versionData: BaseVersionFile = JSON.parse(fs.readFileSync(versionFilePath, 'utf-8'));
             const historyFileName = versionData._fileName;
-            console.debug(`${logTime()} [HistoryResultUtil] 找到历史版本文件: ${historyFileName}`);
+            console.debug(`${logTime()} [HistoryResultUtil] 找到历史版本信息，数据文件名为: ${historyFileName}`);
 
-            // 3. 读取、解压、解码数据文件
-            const historyFilePath = path.join(tempRepoDir, 'data', 'gdcj', historyFileName);
-            if (!fs.existsSync(historyFilePath)) {
-                console.warn(`${logTime()} [HistoryResultUtil] 历史数据文件不存在: ${historyFilePath}。初始化失败。`);
+            // --- 修改点 3: 在克隆 data 分支前，先检查其是否存在 ---
+            console.debug(`${logTime()} [HistoryResultUtil] 正在检查远程分支 ${dataBranchName} 是否存在...`);
+            const dataBranchExists = await this.checkBranchExists(gitRepoUrl, dataBranchName);
+            if (!dataBranchExists) {
+                console.warn(`${logTime()} [HistoryResultUtil] 远程分支 ${dataBranchName} 不存在，但版本文件指向的数据文件为 ${historyFileName}。无法加载数据。`);
+                this.isInitialized = true;
                 return;
             }
+            console.debug(`${logTime()} [HistoryResultUtil] 远程分支 ${dataBranchName} 存在。`);
+
+            // 2. 克隆 data 分支并读取数据文件
+            console.debug(`${logTime()} [HistoryResultUtil] 正在克隆 ${dataBranchName} 分支以获取数据文件...`);
+            if (fs.existsSync(tempDataRepoDir)) {
+                fs.rmSync(tempDataRepoDir, {recursive: true, force: true});
+            }
+            await git.clone(gitRepoUrl, tempDataRepoDir, ['--branch', dataBranchName, '--single-branch']);
+            console.debug(`${logTime()} [HistoryResultUtil] ${dataBranchName} 分支克隆完成。`);
+
+            const historyFilePath = path.join(tempDataRepoDir, 'data', historyFileName);
+            if (!fs.existsSync(historyFilePath)) {
+                console.warn(`${logTime()} [HistoryResultUtil] 历史数据文件不存在: ${historyFilePath}。初始化失败。`);
+                this.isInitialized = true;
+                return;
+            }
+
+            // 3. 读取、解压、解码数据文件
+            console.debug(`${logTime()} [HistoryResultUtil] 正在解压和解码历史数据文件...`);
             const compressedHistoryData = fs.readFileSync(historyFilePath);
             const msgpackBuffer = await zstdDecompress(compressedHistoryData);
             this.oldResult = msgpackDecoder(msgpackBuffer) as TrainDetailMap;
@@ -107,13 +170,13 @@ export class HistoryResultUtil {
 
         } catch (error) {
             console.error(`${logTime()} [HistoryResultUtil] 初始化时发生错误，历史数据将不可用。错误详情:`, error);
-            this.oldResult = {}; // 确保失败时数据为空对象
-            this.isInitialized = true; // 标记为已尝试初始化，避免重复失败
+            this.oldResult = {};
+            this.isInitialized = true;
         } finally {
-            // 5. 清理临时目录
-            if (fs.existsSync(tempRepoDir)) {
-                fs.rmSync(tempRepoDir, {recursive: true, force: true});
-                console.debug(`${logTime()} [HistoryResultUtil] 临时仓库已清理。`);
+            // 5. 清理所有临时目录
+            if (fs.existsSync(baseTempDir)) {
+                fs.rmSync(baseTempDir, {recursive: true, force: true});
+                console.debug(`${logTime()} [HistoryResultUtil] 所有临时仓库已清理。`);
             }
         }
     }
@@ -138,7 +201,6 @@ export class HistoryResultUtil {
         for (const dateKey in this.oldResult) {
             const trainMapForDate = new Map<string, TrainDetail>();
             for (const trainDetail of this.oldResult[dateKey]) {
-                // 遍历一趟列车的所有停靠站，收集所有出现过的车次号
                 const uniqueTrainCodes = new Set(trainDetail.stopTime.map(st => st.stationTrainCode));
                 uniqueTrainCodes.forEach(code => {
                     trainMapForDate.set(code, trainDetail);
@@ -156,20 +218,15 @@ export class HistoryResultUtil {
      * @returns 标准化后的 'YYYY-MM-DD' 格式字符串，如果格式无效则返回原字符串
      */
     private static normalizeDateFormat(dateStr: string): string {
-        // 如果已经包含 '-'，说明格式正确，直接返回
         if (dateStr.includes('-')) {
             return dateStr;
         }
-
-        // 如果是8位纯数字，则按 'YYYYMMDD' 格式处理
         if (/^\d{8}$/.test(dateStr)) {
             const year = dateStr.substring(0, 4);
             const month = dateStr.substring(4, 6);
             const day = dateStr.substring(6, 8);
             return `${year}-${month}-${day}`;
         }
-
-        // 如果格式不符合预期，记录警告并返回原字符串，让后续逻辑处理
         console.warn(`${logTime()} [HistoryResultUtil] 日期格式${dateStr} 无法识别，请使用 'YYYY-MM-DD' 或 'YYYYMMDD' 格式。`);
         return dateStr;
     }
@@ -180,14 +237,10 @@ export class HistoryResultUtil {
      * @returns 车次号字符串数组，如果日期不存在则返回空数组
      */
     public static getTrainListByDate(date: string): string[] {
-        // 1. 在函数入口处，首先对日期格式进行标准化处理
         const normalizedDate = this.normalizeDateFormat(date);
-
         this.ensureInitialized();
-        // 2. 使用标准化后的日期进行查询
         const trainMap = this.trainDetailMapByDateAndCode.get(normalizedDate);
         if (!trainMap) {
-            // 日志中也使用标准化后的日期，以保持一致性
             console.warn(`${logTime()} [HistoryResultUtil] 未找到日期${normalizedDate} 的数据。`);
             return [];
         }
@@ -201,14 +254,10 @@ export class HistoryResultUtil {
      * @returns TrainDetail 对象，如果未找到则返回 undefined
      */
     public static getTrainDetail(date: string, trainCode: string): TrainDetail | undefined {
-        // 1. 在函数入口处，首先对日期格式进行标准化处理
         const normalizedDate = this.normalizeDateFormat(date);
-
         this.ensureInitialized();
-        // 2. 使用标准化后的日期进行查询
         const trainMap = this.trainDetailMapByDateAndCode.get(normalizedDate);
         if (!trainMap) {
-            // 日志中也使用标准化后的日期，以保持一致性
             console.warn(`${logTime()} [HistoryResultUtil] 未找到日期${normalizedDate} 的数据。`);
             return undefined;
         }
