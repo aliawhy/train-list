@@ -15,7 +15,7 @@ const GITHUB_MASTER_BRANCH = 'main';
 
 export interface TrainReportParams {
     userUuid: string;
-    reportUuid: string; // 避免消费方多次消费导致重复数据
+    reportUuid: string;   // 避免消费方多次消费导致重复数据
     reportTimestamp: number;
     trainNumber: string;
     position: string;
@@ -254,45 +254,61 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
         console.debug(`${logTime()} 获取到下载仓库所有分支数量:${allBranches.length}`);
 
         const downloadType = `${APP_NAME}-train-report-msg`;
+        const dataBranchName = `data_${downloadType}`;
+        const versionBranchName = `version_${downloadType}`;
 
-        // 查找现有的下载分支 (修改：只查找以downloadType开头的分支)
-        const existingDownloadBranches = allBranches.filter(branch =>
-            // 注意：simpleGit 操作的是本地完整仓库，其分支列表包含本地和远程引用。
-            // 必须使用 'remotes/origin/' 前缀来精确筛选远程分支，以区别于同名的本地分支。
-            branch.indexOf('remotes/origin/' + downloadType) === 0
-        );
-        console.debug(`${logTime()} 找到现有下载分支数量:${existingDownloadBranches.length}`);
+        // ===== 修改点1: 简化旧数据读取逻辑 =====
+        // 检查版本分支和数据分支是否存在
+        const hasVersionBranch = allBranches.includes(`remotes/origin/${versionBranchName}`);
+        const hasDataBranch = allBranches.includes(`remotes/origin/${dataBranchName}`);
 
-        // 获取旧数据（如果有的话）
-        if (existingDownloadBranches.length > 0) {
+        if (hasVersionBranch && hasDataBranch) {
             hasOldRepo = true;
-            const latestBranch = existingDownloadBranches[existingDownloadBranches.length - 1];
-            const actualBranchName = latestBranch.replace('remotes/origin/', '');
-
             try {
-                await repoGit.checkout(['-b', actualBranchName, latestBranch]);
-                const filePath = path.join(tempDir, downloadType, `${downloadType}.msgpack.zst`);
+                // 1. 从版本分支获取最新数据文件名
+                await repoGit.checkoutBranch(versionBranchName, versionBranchName);
+                const versionFileName = `${downloadType}.version.json`;
+                const versionFilePath = path.join(tempDir, 'version', versionFileName);
 
-                if (fs.existsSync(filePath)) {
-                    // 读取压缩文件
-                    const compressedData = fs.readFileSync(filePath);
-                    console.debug(`${logTime()} 读取到压缩文件，大小: ${compressedData.length} bytes`);
+                let latestDataFileName: string | undefined;
+                if (fs.existsSync(versionFilePath)) {
+                    const versionContent = fs.readFileSync(versionFilePath, 'utf-8');
+                    const versionData = JSON.parse(versionContent) as BaseVersionFile;
+                    latestDataFileName = versionData._fileName;
+                    console.debug(`${logTime()} 从版本文件中读取到最新数据文件名: ${latestDataFileName}`);
+                } else {
+                    console.warn(`${logTime()} 版本分支存在，但版本文件不存在，将无法读取旧数据。`);
+                }
 
-                    // 解压缩
-                    const decompressedData = await decompress(compressedData);
-                    console.debug(`${logTime()} 解压缩完成，大小: ${decompressedData.length} bytes`);
+                // 2. 切换到数据分支并读取数据文件
+                if (latestDataFileName) {
+                    await repoGit.checkoutBranch(dataBranchName, dataBranchName);
+                    const dataFilePath = path.join(tempDir, 'data', latestDataFileName);
 
-                    // 解码msgpack
-                    oldReportData = msgpackDecoder(decompressedData);
-                    console.debug(`${logTime()} 读取到旧数据，车次数量:${Object.keys(oldReportData).length}`);
+                    if (fs.existsSync(dataFilePath)) {
+                        // 读取压缩文件
+                        const compressedData = fs.readFileSync(dataFilePath);
+                        console.debug(`${logTime()} 读取到压缩文件，大小: ${compressedData.length} bytes`);
+
+                        // 解压缩
+                        const decompressedData = await decompress(compressedData);
+                        console.debug(`${logTime()} 解压缩完成，大小: ${decompressedData.length} bytes`);
+
+                        // 解码msgpack
+                        oldReportData = msgpackDecoder(decompressedData);
+                        console.debug(`${logTime()} 读取到旧数据，车次数量:${Object.keys(oldReportData).length}`);
+                    } else {
+                        console.warn(`${logTime()} 数据文件 ${latestDataFileName} 在数据分支上不存在，将无法读取旧数据。`);
+                    }
                 }
             } catch (error) {
-                console.debug(`${logTime()} 读取旧数据失败，继续正常流程:`, error);
+                console.error(`${logTime()} 读取旧数据失败，继续正常流程:`, error);
             }
-
-            // 切换回主分支
-            await repoGit.checkout(GITHUB_MASTER_BRANCH);
         }
+        // =====================================
+
+        // 切换回主分支，准备后续操作
+        await repoGit.checkout(GITHUB_MASTER_BRANCH);
 
         // 获取当前北京日期字符串
         const currentBeijingDate = getBeijingTimeString(Date.now(), 'date');
@@ -411,35 +427,36 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
         // 执行操作
         if (needCreateNewRepo) {
+            // ===== 修改点2: 固定数据分支，文件名加时间戳 =====
             // 准备要写入的数据
             const msgpackBuffer = msgpackEncoder(mergeReportData);
             console.debug(`${logTime()} 数据保存：msgpack编码完毕，大小: ${msgpackBuffer.length} bytes`);
             const compressedData = await compress(msgpackBuffer, 19);
             console.debug(`${logTime()} 数据保存：zstd压缩完毕，大小: ${compressedData.length} bytes`);
 
-            const fileName = `${downloadType}.msgpack.zst`;
+            // 生成带时间戳的文件名
+            const fileTimestamp = getBeijingDateTime();   // e.g., 20250925163424
+            const fileName = `${downloadType}.${fileTimestamp}.msgpack.zst`;
             const fileContent = compressedData;
             const filePathInRepo = `data/${fileName}`;
 
-            // 定义新分支名
-            const newDataBranchName = `data_${downloadType}_${getBeijingDateTime()}_${Date.now()}`;
-
-            // 使用公共函数安全地写入新分支，该函数会处理旧分支的删除
+            // 使用公共函数安全地写入固定数据分支
             await safeWriteToBranch({
                 repoGit: repoGit,
                 tempDir: tempDir,
                 masterBranch: GITHUB_MASTER_BRANCH,
-                branchName: newDataBranchName,
-                needBackup: false, // 合并上报数据，到下载新分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
+                branchName: dataBranchName,   // 使用固定的数据分支名
+                needBackup: false,   // 每次都是覆盖写入，fileContent已包含所有内容
                 filePathInRepo: filePathInRepo,
                 fileContent: fileContent,
                 commitMessage: `Update train delay data - ${getBeijingTimeString(Date.now(), 'datetimeMs')}`,
-                branchesToDeleteBeforeWrite: existingDownloadBranches // 传入需要预先删除的旧分支列表
+                branchesToDeleteBeforeWrite: []   // 不再需要删除旧的数据分支
             });
-            console.debug(`${logTime()} 新分支已推送到远程仓库`);
+            console.debug(`${logTime()} 数据文件已推送到固定分支 ${dataBranchName}`);
+            // =====================================
 
             // ===== 新增逻辑：更新版本分支 =====
-            await updateVersionBranch(repoGit, tempDir, downloadType, newDataBranchName, filePathInRepo, fileName);
+            await updateVersionBranch(repoGit, tempDir, downloadType, dataBranchName, filePathInRepo, fileName);
             // ===============================
         }
 
@@ -448,7 +465,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
         console.debug(`${logTime()} 下载仓库临时目录已清理`);
 
         if (needCreateNewRepo) {
-            console.log(`${logTime()} 数据上传完成，新分支已创建，车次数量:${mergeReportDataLen}`);
+            console.log(`${logTime()} 数据上传完成，新文件已创建，车次数量:${mergeReportDataLen}`);
         } else {
             console.log(`${logTime()} 无需更新，跳过上传操作`);
         }
@@ -458,7 +475,6 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
         throw error;
     }
 }
-
 
 /**
  * 备份前一天的数据到固定的备份分支，保存到数据仓库
@@ -474,7 +490,7 @@ async function backupPreviousDayDataToDatabaseRepo(
 ): Promise<void> {
     // 定义固定的备份分支名和目录名
     const backupBranchName = `backup_${downloadType}_raw-data`;
-    const backupDirName = downloadType; // 例如: "train-delay"
+    const backupDirName = downloadType;   // 例如: "train-delay"
 
     // 为数据库仓库创建一个独立的临时目录，避免与下载仓库的临时目录冲突
     const databaseRepoTempDir = path.join(process.cwd(), 'temp-database-repo');
@@ -516,11 +532,11 @@ async function backupPreviousDayDataToDatabaseRepo(
             tempDir: databaseRepoTempDir,
             masterBranch: GITHUB_MASTER_BRANCH,
             branchName: backupBranchName,
-            needBackup: true, // 每日备份前一天的流程 需要备份历史文件，因为我们把所有文件放到一个分支里了
+            needBackup: true,   // 每日备份前一天的流程 需要备份历史文件，因为我们把所有文件放到一个分支里了
             filePathInRepo: filePathInRepo,
             fileContent: fileContent,
             commitMessage: `Backup data for ${yesterdayBeijingDate}`,
-            branchesToDeleteBeforeWrite: [backupBranchName] // 传入自身分支名，以确保先删除再重建
+            branchesToDeleteBeforeWrite: [backupBranchName]   // 传入自身分支名，以确保先删除再重建
         });
         console.log(`${logTime()} 备份分支 ${backupBranchName} 已成功更新`);
 
@@ -542,8 +558,9 @@ async function backupPreviousDayDataToDatabaseRepo(
  * @param repoGit Git实例
  * @param tempDir 仓库临时目录
  * @param downloadType 下载类型
- * @param newDataBranchName 新创建的数据分支名
+ * @param newDataBranchName 新创建的数据分支名 (现在是固定的)
  * @param newDataFilePathAndName 新创建的数据压缩文件相对路径
+ * @param newDataFileName 新创建的数据压缩文件名
  */
 async function updateVersionBranch(
     repoGit: simpleGit.SimpleGit,
@@ -563,14 +580,14 @@ async function updateVersionBranch(
     try {
         // 准备要写入的版本文件内容
         const versionData = {
-            _version: newDataBranchName,
-            _fileName: newDataFileName,
+            _version: newDataBranchName,   // 现在是固定的数据分支名
+            _fileName: newDataFileName,    // 指向最新的带时间戳的文件
             _dataUrl: `${BASE_GITEE_DOWNLOAD_RAW_URL}/${newDataBranchName}/data/${newDataFileName}`
         } as BaseVersionFile;
         const fileContent = JSON.stringify(versionData, null, 2);
 
         // 准备提交信息
-        const commitMessage = `Update version info to ${newDataBranchName} - ${new Date().toISOString()}`;
+        const commitMessage = `Update version info to ${newDataFileName} - ${new Date().toISOString()}`;
 
         console.debug(`${logTime()} 准备通过 safeWriteToBranch 更新版本文件: ${filePathInRepo}`);
 
@@ -580,11 +597,11 @@ async function updateVersionBranch(
             tempDir: tempDir,
             masterBranch: GITHUB_MASTER_BRANCH,
             branchName: versionBranchName,
-            needBackup: false, // 创建新下载版本分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
+            needBackup: false,   // 创建新下载版本分支，不需要备份，因为每次都是覆盖写入，fileContent已包含所有内容
             filePathInRepo: filePathInRepo,
             fileContent: fileContent,
             commitMessage: commitMessage,
-            branchesToDeleteBeforeWrite: [versionBranchName] // 传入自身分支名，以确保先删除再重建
+            branchesToDeleteBeforeWrite: [versionBranchName]   // 传入自身分支名，以确保先删除再重建
         });
 
         console.debug(`${logTime()} 版本分支 ${versionBranchName} 已成功更新并推送到远程`);
@@ -627,7 +644,7 @@ function isValidTrainDelayReport(data: any): data is TrainReportParams {
 
     // 3. 检查必需字段是否存在
     for (const field of requiredFields) {
-        if (!(field in data)) { // 使用 in 操作符比 keys.includes 更高效
+        if (!(field in data)) {   // 使用 in 操作符比 keys.includes 更高效
             return false;
         }
     }
@@ -700,7 +717,6 @@ export async function main(): Promise<void> {
         throw error;
     }
 }
-
 
 // 如果需要直接运行，可以取消注释
 main();
