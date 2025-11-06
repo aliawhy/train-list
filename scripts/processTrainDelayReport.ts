@@ -472,7 +472,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
                 filePathInRepo: filePathInRepo,
                 fileContent: fileContent,
                 commitMessage: `Update train delay data - ${getBeijingTimeString(Date.now(), 'datetimeMs')}`,
-                branchesToDeleteBeforeWrite: []   // 不再需要删除旧的数据分支
+                branchesToDeleteBeforeWrite: [dataBranchName]
             });
             console.debug(`${logTime()} 数据文件已推送到固定分支 ${dataBranchName}`);
             // =====================================
