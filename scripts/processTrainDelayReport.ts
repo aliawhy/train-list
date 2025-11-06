@@ -248,25 +248,45 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
         await repoGit.addConfig('user.email', 'action@github.com');
         await repoGit.addConfig('user.name', 'GitHub Action');
 
-        // 获取所有分支
-        const branchesResult = await repoGit.branch();
-        const allBranches = branchesResult.all;
-        console.debug(`${logTime()} 获取到下载仓库所有分支数量:${allBranches.length}`);
-
         const downloadType = `${APP_NAME}-train-report-msg`;
         const dataBranchName = `data_${downloadType}`;
         const versionBranchName = `version_${downloadType}`;
 
-        // ===== 修改点1: 简化旧数据读取逻辑 =====
-        // 检查版本分支和数据分支是否存在
-        const hasVersionBranch = allBranches.includes(`remotes/origin/${versionBranchName}`);
-        const hasDataBranch = allBranches.includes(`remotes/origin/${dataBranchName}`);
+        // ===== 修改点1: 更可靠的分支存在性检查 =====
+        // 移除对 repoGit.branch() 的依赖，直接尝试获取特定分支
+        console.debug(`${logTime()} 开始检查远程分支是否存在...`);
 
+        // 尝试获取版本分支和数据分支的最新信息
+        // --dry-run 会模拟运行，不会实际拉取数据，速度很快
+        // 如果分支不存在，git fetch 会报错
+        let hasVersionBranch = false;
+        let hasDataBranch = false;
+
+        try {
+            await repoGit.fetch(['origin', versionBranchName, '--dry-run']);
+            hasVersionBranch = true;
+            console.debug(`${logTime()} 远程分支 ${versionBranchName} 存在`);
+        } catch (error) {
+            console.debug(`${logTime()} 远程分支 ${versionBranchName} 不存在`);
+        }
+
+        try {
+            await repoGit.fetch(['origin', dataBranchName, '--dry-run']);
+            hasDataBranch = true;
+            console.debug(`${logTime()} 远程分支 ${dataBranchName} 存在`);
+        } catch (error) {
+            console.debug(`${logTime()} 远程分支 ${dataBranchName} 不存在`);
+        }
+
+        // 如果两个分支都存在，则尝试读取旧数据
         if (hasVersionBranch && hasDataBranch) {
             hasOldRepo = true;
             try {
                 // 1. 从版本分支获取最新数据文件名
-                await repoGit.checkoutBranch(versionBranchName, versionBranchName);
+                // 由于我们已经 fetch 过，现在可以直接 checkout
+                await repoGit.checkout(['-b', versionBranchName, `origin/${versionBranchName}`]);
+                console.debug(`${logTime()} 已基于远程分支创建并切换到本地分支:${versionBranchName}`);
+
                 const versionFileName = `${downloadType}.version.json`;
                 const versionFilePath = path.join(tempDir, 'version', versionFileName);
 
@@ -282,7 +302,9 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
 
                 // 2. 切换到数据分支并读取数据文件
                 if (latestDataFileName) {
-                    await repoGit.checkoutBranch(dataBranchName, dataBranchName);
+                    await repoGit.checkout(['-b', dataBranchName, `origin/${dataBranchName}`]);
+                    console.debug(`${logTime()} 已基于远程分支创建并切换到本地分支:${dataBranchName}`);
+
                     const dataFilePath = path.join(tempDir, 'data', latestDataFileName);
 
                     if (fs.existsSync(dataFilePath)) {
