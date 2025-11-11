@@ -371,12 +371,12 @@ function buildReportContent(stats: {
             output += `基础模式查询: ${moduleStats.basicModeCount} 次\n\n`;
 
             if (moduleStats.familiarModeCount > 0) {
-                output += `--- 2.5.1 熟路模式 - 简单换乘耗时配置 Top 5 ---\n`;
-                output += appendTopList(moduleStats.simpleTransferTimeCounts, '次', 5, true);
+                output += `--- 2.5.1 熟路模式 - 简单换乘耗时配置 Top 10 ---\n`;
+                output += appendTopList(moduleStats.simpleTransferTimeCounts, '次', 10, true);
                 output += '\n';
 
-                output += `--- 2.5.2 熟路模式 - 复杂换乘耗时配置 Top 5 ---\n`;
-                output += appendTopList(moduleStats.complexTransferTimeCounts, '次', 5, true);
+                output += `--- 2.5.2 熟路模式 - 复杂换乘耗时配置 Top 10 ---\n`;
+                output += appendTopList(moduleStats.complexTransferTimeCounts, '次', 10, true);
                 output += '\n';
             }
         }
