@@ -457,8 +457,8 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
             console.debug(`${logTime()} 数据保存：zstd压缩完毕，大小: ${compressedData.length} bytes`);
 
             // 生成带时间戳的文件名
-            const fileTimestamp = getBeijingDateTime();   // e.g., 20250925163424
-            const fileName = `${downloadType}.${fileTimestamp}.msgpack.zst`;
+            const fileTimestampAsVersion = getBeijingDateTime();   // e.g., 20250925163424
+            const fileName = `${downloadType}.${fileTimestampAsVersion}.msgpack.zst`;
             const fileContent = compressedData;
             const filePathInRepo = `data/${fileName}`;
 
@@ -478,7 +478,7 @@ export async function mergeNewReportAndClearNoneTodayDataThenPushToDownloadRepo(
             // =====================================
 
             // ===== 新增逻辑：更新版本分支 =====
-            await updateVersionBranch(repoGit, tempDir, downloadType, dataBranchName, filePathInRepo, fileName);
+            await updateVersionBranch(repoGit, tempDir, downloadType, dataBranchName, filePathInRepo, fileName, fileTimestampAsVersion);
             // ===============================
         }
 
@@ -590,7 +590,8 @@ async function updateVersionBranch(
     downloadType: string,
     newDataBranchName: string,
     newDataFilePathAndName: string,
-    newDataFileName: string
+    newDataFileName: string,
+    fileTimestampAsVersion: string
 ): Promise<void> {
     const versionBranchName = `version_${downloadType}`;
     const versionFileName = `${downloadType}.version.json`;
@@ -602,7 +603,7 @@ async function updateVersionBranch(
     try {
         // 准备要写入的版本文件内容
         const versionData = {
-            _version: newDataBranchName,   // 现在是固定的数据分支名
+            _version: fileTimestampAsVersion,
             _fileName: newDataFileName,    // 指向最新的带时间戳的文件
             _dataUrl: `${BASE_GITEE_DOWNLOAD_RAW_URL}/${newDataBranchName}/data/${newDataFileName}`
         } as BaseVersionFile;
