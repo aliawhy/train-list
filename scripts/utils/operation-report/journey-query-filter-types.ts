@@ -20,14 +20,17 @@ export interface QueryData {
     arrivalStation: StationOption | string | null // 广东城际、定制中转全部改造为string了，其他还是StationOption
     departureDay: string
     customTransferCnt: number
-    // transferStations: StationOption[]
-    // customTransferPaths: TransferPath[]
-    // autoTransferPaths: TransferPath[]
     directPaths: TransferPath[]
     recommendPaths: TransferPath[]
     customPaths: TransferPath[]
-    // autoTransferStation: boolean // 已经不存在
     __load_finished__: boolean
+
+    // 广东城际熟路模式
+    isGDCJFamiliarMode: boolean
+    // 简单车站最短换乘耗时
+    simpleStationMinTransferTimeForGDCJ: number;
+    // 复杂车站最短换乘耗时
+    complexStationMinTransferTimeForGDC: number;
 }
 
 export function stationPathPair2StringForShowV2(path: StationPathPair[]): string {

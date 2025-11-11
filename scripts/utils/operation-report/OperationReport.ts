@@ -16,6 +16,10 @@ interface AnalyzedQueryData {
     arrivalStation: string;
     departureDay: string;
     rawPayload: any; // 保留原始payload，用于后续详细分析
+    // 广东城际熟路模式相关字段
+    isGDCJFamiliarMode: boolean;
+    simpleStationMinTransferTimeForGDCJ: number | null;
+    complexStationMinTransferTimeForGDC: number | null;
 }
 
 // 定义一个更详细的统计结果接口
@@ -24,6 +28,12 @@ interface DetailedStats {
     totalStationCounts: { [station: string]: number };
     departureStationCounts: { [station: string]: number };
     arrivalStationCounts: { [station: string]: number };
+    // 广东城际熟路模式统计
+    familiarModeCount: number;
+    basicModeCount: number;
+    // 换乘时间配置统计 (key为时间，value为次数)
+    simpleTransferTimeCounts: { [time: number]: number };
+    complexTransferTimeCounts: { [time: number]: number };
 }
 
 // 定义按模块分类的统计结果
@@ -160,6 +170,11 @@ function transformData(rawData: OperationTrackingParams<EventType>[]): AnalyzedQ
                 return '未知车站';
             };
 
+            // 提取广东城际熟路模式相关字段，处理历史数据兼容性
+            const isGDCJFamiliarMode = queryData?.isGDCJFamiliarMode ?? false; // 默认为基础模式
+            const simpleStationMinTransferTimeForGDCJ = queryData?.simpleStationMinTransferTimeForGDCJ ?? null;
+            const complexStationMinTransferTimeForGDC = queryData?.complexStationMinTransferTimeForGDC ?? null;
+
             return {
                 userUuid: event.userUuid,
                 eventTimestamp: event.eventTimestamp,
@@ -168,6 +183,9 @@ function transformData(rawData: OperationTrackingParams<EventType>[]): AnalyzedQ
                 arrivalStation: getStationName(queryData.arrivalStation),
                 departureDay: queryData.departureDay || '未知日期',
                 rawPayload: payload,
+                isGDCJFamiliarMode,
+                simpleStationMinTransferTimeForGDCJ,
+                complexStationMinTransferTimeForGDC,
             };
         });
 }
@@ -177,19 +195,19 @@ function transformData(rawData: OperationTrackingParams<EventType>[]): AnalyzedQ
  */
 function getDetailedStats(data: AnalyzedQueryData[]): StatsByModule {
     const stats: StatsByModule = {
-        all: {routeCounts: {}, totalStationCounts: {}, departureStationCounts: {}, arrivalStationCounts: {}},
-        guangdong: {routeCounts: {}, totalStationCounts: {}, departureStationCounts: {}, arrivalStationCounts: {}},
-        rapid: {routeCounts: {}, totalStationCounts: {}, departureStationCounts: {}, arrivalStationCounts: {}},
-        exact: {routeCounts: {}, totalStationCounts: {}, departureStationCounts: {}, arrivalStationCounts: {}},
+        all: {routeCounts: {}, totalStationCounts: {}, departureStationCounts: {}, arrivalStationCounts: {}, familiarModeCount: 0, basicModeCount: 0, simpleTransferTimeCounts: {}, complexTransferTimeCounts: {}},
+        guangdong: {routeCounts: {}, totalStationCounts: {}, departureStationCounts: {}, arrivalStationCounts: {}, familiarModeCount: 0, basicModeCount: 0, simpleTransferTimeCounts: {}, complexTransferTimeCounts: {}},
+        rapid: {routeCounts: {}, totalStationCounts: {}, departureStationCounts: {}, arrivalStationCounts: {}, familiarModeCount: 0, basicModeCount: 0, simpleTransferTimeCounts: {}, complexTransferTimeCounts: {}},
+        exact: {routeCounts: {}, totalStationCounts: {}, departureStationCounts: {}, arrivalStationCounts: {}, familiarModeCount: 0, basicModeCount: 0, simpleTransferTimeCounts: {}, complexTransferTimeCounts: {}},
     };
 
     data.forEach(item => {
-        const {queryModule, departureStation, arrivalStation} = item;
+        const {queryModule, departureStation, arrivalStation, isGDCJFamiliarMode, simpleStationMinTransferTimeForGDCJ, complexStationMinTransferTimeForGDC} = item;
         const route = `${departureStation}→${arrivalStation}`;
-        updateStatsForModule(stats.all, departureStation, arrivalStation, route);
-        if (queryModule === '广东城际') updateStatsForModule(stats.guangdong, departureStation, arrivalStation, route);
-        else if (queryModule === '定制中转') updateStatsForModule(stats.rapid, departureStation, arrivalStation, route);
-        else if (queryModule === '拼接中转') updateStatsForModule(stats.exact, departureStation, arrivalStation, route);
+        updateStatsForModule(stats.all, departureStation, arrivalStation, route, isGDCJFamiliarMode, simpleStationMinTransferTimeForGDCJ, complexStationMinTransferTimeForGDC);
+        if (queryModule === '广东城际') updateStatsForModule(stats.guangdong, departureStation, arrivalStation, route, isGDCJFamiliarMode, simpleStationMinTransferTimeForGDCJ, complexStationMinTransferTimeForGDC);
+        else if (queryModule === '定制中转') updateStatsForModule(stats.rapid, departureStation, arrivalStation, route, isGDCJFamiliarMode, simpleStationMinTransferTimeForGDCJ, complexStationMinTransferTimeForGDC);
+        else if (queryModule === '拼接中转') updateStatsForModule(stats.exact, departureStation, arrivalStation, route, isGDCJFamiliarMode, simpleStationMinTransferTimeForGDCJ, complexStationMinTransferTimeForGDC);
     });
 
     return stats;
@@ -198,12 +216,25 @@ function getDetailedStats(data: AnalyzedQueryData[]): StatsByModule {
 /**
  * 辅助函数：为单个模块更新统计数据
  */
-function updateStatsForModule(moduleStats: DetailedStats, departure: string, arrival: string, route: string): void {
+function updateStatsForModule(moduleStats: DetailedStats, departure: string, arrival: string, route: string, isGDCJFamiliarMode: boolean, simpleTime: number | null, complexTime: number | null): void {
     moduleStats.routeCounts[route] = (moduleStats.routeCounts[route] || 0) + 1;
     moduleStats.totalStationCounts[departure] = (moduleStats.totalStationCounts[departure] || 0) + 1;
     moduleStats.totalStationCounts[arrival] = (moduleStats.totalStationCounts[arrival] || 0) + 1;
     moduleStats.departureStationCounts[departure] = (moduleStats.departureStationCounts[departure] || 0) + 1;
     moduleStats.arrivalStationCounts[arrival] = (moduleStats.arrivalStationCounts[arrival] || 0) + 1;
+
+    // 更新熟路模式统计
+    if (isGDCJFamiliarMode) {
+        moduleStats.familiarModeCount++;
+        if (simpleTime !== null) {
+            moduleStats.simpleTransferTimeCounts[simpleTime] = (moduleStats.simpleTransferTimeCounts[simpleTime] || 0) + 1;
+        }
+        if (complexTime !== null) {
+            moduleStats.complexTransferTimeCounts[complexTime] = (moduleStats.complexTransferTimeCounts[complexTime] || 0) + 1;
+        }
+    } else {
+        moduleStats.basicModeCount++;
+    }
 }
 
 /**
@@ -300,6 +331,11 @@ function buildReportContent(stats: {
     output += `广东城际板块查询量: ${stats.guangdongCount}\n`;
     output += `定制中转板块查询量: ${stats.rapidCount}\n`;
     output += `拼接中转板块查询量: ${stats.exactCount}\n\n`;
+    // 全局熟路模式统计
+    output += `--- 广东城际模式分布 (全局) ---\n`;
+    output += `熟路模式查询: ${stats.detailedStats.all.familiarModeCount} 次\n`;
+    output += `基础模式查询: ${stats.detailedStats.all.basicModeCount} 次\n\n`;
+
 
     // === 2. Top 10 数据详情 ===
     const modules = [
@@ -327,6 +363,23 @@ function buildReportContent(stats: {
         output += `--- 2.4 到达车站 Top 10 ---\n`;
         output += appendTopList(moduleStats.arrivalStationCounts, '次');
         output += '\n\n';
+
+        // 广东城际熟路模式专项分析
+        if (module.key === 'guangdong') {
+            output += `--- 2.5 广东城际熟路模式分析 ---\n`;
+            output += `熟路模式查询: ${moduleStats.familiarModeCount} 次\n`;
+            output += `基础模式查询: ${moduleStats.basicModeCount} 次\n\n`;
+
+            if (moduleStats.familiarModeCount > 0) {
+                output += `--- 2.5.1 熟路模式 - 简单换乘耗时配置 Top 5 ---\n`;
+                output += appendTopList(moduleStats.simpleTransferTimeCounts, '次', 5, true);
+                output += '\n';
+
+                output += `--- 2.5.2 熟路模式 - 复杂换乘耗时配置 Top 5 ---\n`;
+                output += appendTopList(moduleStats.complexTransferTimeCounts, '次', 5, true);
+                output += '\n';
+            }
+        }
     });
 
     // === 3. 定制中转模块深度分析 ===
@@ -370,7 +423,20 @@ function buildReportContent(stats: {
             const trajectory = stats.userTrajectories[userUuid];
             trajectory.forEach((event, index) => {
                 const date = getBeijingTimeString(event.eventTimestamp, 'datetime');
-                output += `  ${index + 1}. [${date}] ${event.queryModule} ${event.departureStation}→${event.arrivalStation} (出发日期: ${event.departureDay})\n`;
+                let logLine = `  ${index + 1}. [${date}] ${event.queryModule} ${event.departureStation}→${event.arrivalStation} (出发日期: ${event.departureDay})`;
+
+                // [更新] 为广东城际查询增加模式和换乘时间信息
+                if (event.queryModule === '广东城际') {
+                    const mode = event.isGDCJFamiliarMode ? '熟路模式' : '基础模式';
+                    let timeInfo = '';
+                    if (event.isGDCJFamiliarMode) {
+                        const simpleTime = event.simpleStationMinTransferTimeForGDCJ ?? 'N/A';
+                        const complexTime = event.complexStationMinTransferTimeForGDC ?? 'N/A';
+                        timeInfo = ` 简单换乘值: ${simpleTime} 复杂换乘值: ${complexTime}`;
+                    }
+                    logLine += ` (${mode}${timeInfo})`;
+                }
+                output += logLine + '\n';
 
                 if (event.queryModule === '定制中转') {
                     const queryData = event.rawPayload.queryData as QueryData;
@@ -414,15 +480,30 @@ function buildReportContent(stats: {
 
 /**
  * 辅助函数：将Top列表格式化后返回字符串
+ * @param counts 统计对象
+ * @param unit 单位
+ * @param limit 显示条数，默认10
+ * @param isKeyNumeric 键是否为数字类型，用于排序
  */
-function appendTopList(counts: { [key: string]: number }, unit: string): string {
-    const sortedList = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 10);
+function appendTopList(counts: { [key: string]: number }, unit: string, limit: number = 10, isKeyNumeric: boolean = false): string {
+    let sortedList;
+    if (isKeyNumeric) {
+        // 如果键是数字，按数字大小排序
+        sortedList = Object.entries(counts)
+            .sort(([, a], [, b]) => b - a) // 先按次数降序
+            .sort(([aKey], [bKey]) => Number(aKey) - Number(bKey)) // 再按键值升序
+            .slice(0, limit);
+    } else {
+        // 默认按次数降序
+        sortedList = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, limit);
+    }
+
     if (sortedList.length === 0) return '暂无数据。\n';
     let result = '';
     sortedList.forEach(([name, count], index) => { result += `${index + 1}. ${name}: ${count} ${unit}\n`; });
     return result;
 }
 
-// --- 执行函数 ---
-// const jsonFilePath = 'D:\\工作区\\软件项目\\gitee\\mini-service-database\\track-query\\track-query_2025-10-15.json';
+// --- 本地侧式执行函数 ---
+// const jsonFilePath = 'D:\\工作区\\软件项目\\gitee\\mini-service-database\\track-query\\track-query_2025-11-11.json';
 // generateOperationTrackEventQueryReport(jsonFilePath);
