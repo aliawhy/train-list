@@ -15,9 +15,27 @@ export interface StationPathPair {
     train: string // 快速联程有， 用于记录是哪个车 （目前仅用于打印，暂不消费于其他！！）。 广东城际  目还没有赋值 // TODO 后续请仔细分析
 }
 
+export enum LineType {
+    AIRPORT = '飞机',
+    Intercity = '城际',
+    Metro = '地铁',
+    Railway = '火车'
+}
+
+export interface StationExtension {
+    site: string;
+    displayName: string;
+    stationType: LineType;
+    city: string;
+    uniKey?: string; // 维护时不用赋值，自动由流程设置，值是city-stationType-displayName
+    description?: string;
+}
+
 export interface QueryData {
-    departureStation: StationOption | string | null // 广东城际、定制中转全部改造为string了，其他还是StationOption
-    arrivalStation: StationOption | string | null // 广东城际、定制中转全部改造为string了，其他还是StationOption
+    // departureStation: StationOption | string | null // 广东城际、定制中转全部改造为string了，其他还是StationOption
+    // arrivalStation: StationOption | string | null // 广东城际、定制中转全部改造为string了，其他还是StationOption
+    departureStation: string | null | StationExtension // 基本是string类型，广东城际使用 StationExtension
+    arrivalStation: string | null | StationExtension // 基本是string类型，广东城际使用 StationExtension
     departureDay: string
     customTransferCnt: number
     directPaths: TransferPath[]
@@ -94,3 +112,4 @@ export interface FilterOptions {
     ticketAvailable: boolean // 这两个字段已经停用， 被 trainTypes 功能覆盖
     seatAvailable: boolean // 这两个字段已经停用， 被 seatTypes 功能覆盖
 }
+
