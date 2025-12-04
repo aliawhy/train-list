@@ -259,7 +259,7 @@ function buildUserTrajectories(userTrajectories: Record<string, any>): string {
             const trajectory = userTrajectories[userUuid];
             trajectory.forEach((event: any, index: number) => {
                 const date = getBeijingTimeString(event.eventTimestamp, 'datetime');
-                let logLine = `  ${index + 1}. [${date}] ${event.queryModule}${event.departureStation}→${event.arrivalStation} (出发日期:${event.departureDay})`;
+                let logLine = `  ${index + 1}. [${date}] ${event.queryModule}：${event.departureStation}→${event.arrivalStation} (出发日期:${event.departureDay})`;
 
                 // [修复] 为广东城际查询增加模式和换乘时间信息
                 if (event.queryModule === '广东城际') {
@@ -304,9 +304,21 @@ function buildUserTrajectories(userTrajectories: Record<string, any>): string {
 
 // --- 辅助函数 ---
 
-function stationPathPair2StringForShowV2(path: StationPathPair[]): string {
-    return path.map(pair => `${pair.station1}→${pair.station2}`).join(' | ');
+function getStationNameFromPair(pair: StationPathPair): { station1: string, station2: string } {
+    const station1 = pair.station1 ?? pair.site1 ?? '未知站点';
+    const station2 = pair.station2 ?? pair.site2 ?? '未知站点';
+    return { station1, station2 };
 }
+
+function stationPathPair2StringForShowV2(path: StationPathPair[]): string {
+    return path.map(pair => {
+        const { station1, station2 } = getStationNameFromPair(pair);
+        return `${station1}→${station2}`;
+    }).join(' | ');
+}
+// function stationPathPair2StringForShowV2(path: StationPathPair[]): string {
+//     return path.map(pair => `${pair.station1}→${pair.station2}`).join(' | ');
+// }
 
 export function appendTopList(counts: { [key: string]: number }, options: TopListOptions): string {
     const { unit, limit = 10, isKeyNumeric = false } = options;

@@ -32,7 +32,13 @@ export class CustomTransferAnalyzer extends BaseModuleAnalyzer<CustomTransferAna
 
             const allTransferPaths = [...usedRecommendPaths, ...usedCustomPaths];
             allTransferPaths.forEach(path => {
-                analysis.totalTransferStops += (path.path.length - 1);
+                const validPathLength = path.path.filter(pair =>
+                    (pair.station1 && pair.station2) || (pair.site1 && pair.site2)
+                ).length;
+
+                if (validPathLength > 0) {
+                    analysis.totalTransferStops += (validPathLength - 1);
+                }
             });
 
             if (allTransferPaths.length > 0) {

@@ -10,8 +10,10 @@ export interface TransferPath {
 }
 
 export interface StationPathPair {
-    station1: string
-    station2: string
+    station1?: string; // 旧字段，标记为可选
+    station2?: string; // 旧字段，标记为可选
+    site1?: string;    // 新字段，标记为可选
+    site2?: string;    // 新字段，标记为可选
     train: string // 快速联程有， 用于记录是哪个车 （目前仅用于打印，暂不消费于其他！！）。 广东城际  目还没有赋值 // TODO 后续请仔细分析
 }
 
