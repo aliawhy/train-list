@@ -34,10 +34,8 @@ export interface StationExtension {
 }
 
 export interface QueryData {
-    // departureStation: StationOption | string | null // 广东城际、定制中转全部改造为string了，其他还是StationOption
-    // arrivalStation: StationOption | string | null // 广东城际、定制中转全部改造为string了，其他还是StationOption
-    departureStation: string | null | StationExtension // 基本是string类型，广东城际使用 StationExtension
-    arrivalStation: string | null | StationExtension // 基本是string类型，广东城际使用 StationExtension
+    departureStation: string | null | StationExtension // 基本是string类型，广东城际、广东铁路 使用 StationExtension
+    arrivalStation: string | null | StationExtension // 基本是string类型，广东城际、广东铁路 使用 StationExtension
     departureDay: string
     customTransferCnt: number
     directPaths: TransferPath[]

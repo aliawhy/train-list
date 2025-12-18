@@ -39,7 +39,7 @@ export async function scanTrainDelayReportFromUploaderRepo(): Promise<{ [key: st
         }
 
         // 克隆仓库
-        const git = simpleGit();
+        const git: SimpleGit = simpleGit();
         await git.clone(process.env.MY_GITHUB_MINI_DATA_UPLOADER_URL, tempDir);
         console.debug(`${logTime()} github 上传仓库克隆完成`);
 

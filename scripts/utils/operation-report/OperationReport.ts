@@ -21,9 +21,10 @@ export function generateOperationTrackEventQueryReport(filePath: string): void {
 
         // 1. 总体概览统计
         const totalQueries = analyzedData.length;
-        const guangdongQueries = analyzedData.filter(d => d.queryModule === '广东城际');
-        const rapidQueries = analyzedData.filter(d => d.queryModule === '定制中转');
-        const exactQueries = analyzedData.filter(d => d.queryModule === '拼接中转');
+        const guangdongIntercityQueries = analyzedData.filter(d => d.queryModule === '广东城际');
+        const guangdongRailwayQueries = analyzedData.filter(d => d.queryModule === '广东铁路');
+        const customTransferQueries = analyzedData.filter(d => d.queryModule === '定制中转');
+        const exactTransferQueries = analyzedData.filter(d => d.queryModule === '拼接中转');
 
         const detailedStats = getDetailedStats(analyzedData);
         const uniqueUsers = new Set(analyzedData.map(d => d.userUuid)).size;
@@ -42,15 +43,16 @@ export function generateOperationTrackEventQueryReport(filePath: string): void {
         // 3. 生成报告内容
         const reportContent = buildReportContent({
             totalQueries,
-            guangdongCount: guangdongQueries.length,
-            rapidCount: rapidQueries.length,
-            exactCount: exactQueries.length,
+            guangdongIntercityCount: guangdongIntercityQueries.length,
+            guangdongRailwayCount: guangdongRailwayQueries.length,
+            customTransferCount: customTransferQueries.length,
+            exactTransferCount: exactTransferQueries.length,
             detailedStats,
             userTrajectories,
             uniqueUsers,
             avgQueriesPerUser,
             filePath,
-            moduleAnalyses, // 传递所有模块的分析结果
+            moduleAnalyses, // 目前设计有些问题，但就是按 Record<string, string> 来传， 虽然接收方有些不一样，但目前是对的
         });
 
         const reportFilePath = `${filePath}.report.txt`;
@@ -63,5 +65,5 @@ export function generateOperationTrackEventQueryReport(filePath: string): void {
 }
 
 // --- 本地侧式执行函数 ---
-const jsonFilePath = 'D:\\工作区\\软件项目\\gitee\\mini-service-database\\track-query\\track-query_2025-12-04.json';
+const jsonFilePath = 'D:\\工作区\\软件项目\\gitee\\mini-service-database\\track-query\\track-query_2025-12-18.json';
 generateOperationTrackEventQueryReport(jsonFilePath);

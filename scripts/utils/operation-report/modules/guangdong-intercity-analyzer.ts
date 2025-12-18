@@ -1,7 +1,7 @@
 import {BaseModuleAnalyzer} from './base-analyzer';
 import {AnalyzedQueryData, GuangdongAnalysis} from '../report-generation-types';
 
-export class GuangdongAnalyzer extends BaseModuleAnalyzer<GuangdongAnalysis> {
+export class GuangdongIntercityAnalyzer extends BaseModuleAnalyzer<GuangdongAnalysis> {
     getModuleName(): string {
         return '广东城际';
     }

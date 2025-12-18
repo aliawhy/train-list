@@ -6,6 +6,7 @@ export function getDetailedStats(data: AnalyzedQueryData[]): Record<string, Deta
     const stats: Record<string, DetailedStats> = {
         all: createEmptyDetailedStats(),
         '广东城际': createEmptyDetailedStats(),
+        '广东铁路': createEmptyDetailedStats(),
         '定制中转': createEmptyDetailedStats(),
         '拼接中转': createEmptyDetailedStats(),
     };

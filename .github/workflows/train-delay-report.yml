@@ -40,38 +40,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # =======================================================
-      # 👇 修改后的验证步骤 (非阻塞式，中文日志) 👇
-      # =======================================================
-      - name: Verify Gitee Accessibility
-        id: gitee-check # 给这个步骤一个ID，方便后续步骤引用它的输出
-        run: |
-          echo "🔍 正在验证当前 Runner 对 Gitee 的访问能力..."
-          
-          # 默认设置为不可访问
-          GITEE_ACCESSIBLE="false"
-          
-          HTTP_STATUS=$(curl -s -o /dev/null -I -w "%{http_code}" --connect-timeout 10 -m 15 https://gitee.com)
-          
-          # 检查 curl 命令本身是否成功
-          if [ $? -eq 0 ] && [ "$HTTP_STATUS" -eq 200 ]; then
-            echo "✅ 验证成功！Gitee 可正常访问 (HTTP 200)。"
-            GITEE_ACCESSIBLE="true"
-          else
-            echo "⚠️ 警告：无法访问 Gitee。"
-            if [ $? -ne 0 ]; then
-              echo "⚠️ 原因：curl 命令超时或遇到网络错误。"
-            else
-              echo "⚠️ 原因：Gitee 返回的 HTTP 状态码为: $HTTP_STATUS"
-            fi
-            echo "⚠️ 后续需要访问 Gitee 的步骤将被跳过。"
-          fi
-          
-          # 将结果设置为环境变量，并输出到后续步骤
-          echo "GITEE_ACCESSIBLE=$GITEE_ACCESSIBLE" >> $GITHUB_ENV
-      # =======================================================
-
-
       - name: Run test script
         env:
           GITEE_TRAIN_LIST_URL: ${{ secrets.GITEE_TRAIN_LIST_URL }}

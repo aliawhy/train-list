@@ -1,5 +1,3 @@
-import {EventType, OperationTrackingParams} from "../operation-tracking/OperationTrackingEntity";
-import {QueryData, TransferPath, StationPathPair} from "./journey-query-filter-types";
 import {QueryModuleType} from "../operation-tracking/OperationTrackingEntity";
 
 // 原始数据经过初步解析后的结构
@@ -33,9 +31,10 @@ export interface UserTrajectory {
 // 用于构建报告的参数集合
 export interface ReportBuildParams {
     totalQueries: number;
-    guangdongCount: number;
-    rapidCount: number;
-    exactCount: number;
+    guangdongIntercityCount: number; // 广东城际查询量
+    guangdongRailwayCount: number; // 广东铁路查询量
+    customTransferCount: number; // 定制中转
+    exactTransferCount: number; // 拼接中转
     detailedStats: Record<string, DetailedStats>; // 使用 Record 来动态匹配模块名
     userTrajectories: UserTrajectory;
     uniqueUsers: number;
