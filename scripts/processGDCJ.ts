@@ -43,11 +43,13 @@ export function getQueryStationPairs(trainDay: string) {
         {trainDay: trainDay, fromStationCode: foshanxi, toStationCode: panyu},    // [佛山西、番禺]
         {trainDay: trainDay, fromStationCode: panyu, toStationCode: guangzhoulianhuashan},  // [番禺、广州莲花山]
         {trainDay: trainDay, fromStationCode: panyu, toStationCode: donggguanxi},  // [番禺、东莞西]
-        {trainDay: trainDay, fromStationCode: guangzhoulianhuashan, toStationCode: xiaojinkou },  // [广州莲花山、小金口]
+        {trainDay: trainDay, fromStationCode: guangzhoulianhuashan, toStationCode: xiaojinkou},  // [广州莲花山、小金口]
         {trainDay: trainDay, fromStationCode: qingcheng, toStationCode: huadu},     // [清城、花都]
         {trainDay: trainDay, fromStationCode: huadu, toStationCode: baiyunjichangbei},  // [花都、白云机场北]
         {trainDay: trainDay, fromStationCode: xintangnan, toStationCode: shenzhenjichang},  // [新塘南、深圳机场]
 
+        {trainDay: trainDay, fromStationCode: panyu, toStationCode: huizhoubei},  // [番禺、惠州北]
+        {trainDay: trainDay, fromStationCode: panyu, toStationCode: huizhoubei},  // [番禺、佛山西]
 
         {trainDay: trainDay, fromStationCode: huadu, toStationCode: pazhou},  // [花都、琶洲]
         {trainDay: trainDay, fromStationCode: huadu, toStationCode: panyu},  // [花都、番禺]
@@ -55,7 +57,7 @@ export function getQueryStationPairs(trainDay: string) {
         {trainDay: trainDay, fromStationCode: huadu, toStationCode: zhaoqing},  // [花都、肇庆]
         {trainDay: trainDay, fromStationCode: huadu, toStationCode: donggguanxi},  // [花都、东莞西]
         {trainDay: trainDay, fromStationCode: huadu, toStationCode: huizhoubei},  // [花都、惠州北]
-        {trainDay: trainDay, fromStationCode: huadu, toStationCode: xiaojinkou },  // [花都、小金口]
+        {trainDay: trainDay, fromStationCode: huadu, toStationCode: xiaojinkou},  // [花都、小金口]
 
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: panyu},  // [琶洲、番禺]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: foshanxi},  // [琶洲、佛山西]
@@ -64,7 +66,7 @@ export function getQueryStationPairs(trainDay: string) {
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: guangzhoulianhuashan},  // [琶洲、广州莲花山]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: donggguanxi},  // [琶洲、东莞西]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: huizhoubei},  // [琶洲、惠州北]
-        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: xiaojinkou },  // [琶洲、小金口]
+        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: xiaojinkou},  // [琶洲、小金口]
         {trainDay: trainDay, fromStationCode: pazhou, toStationCode: feixia},  // [琶洲、飞霞]
 
         {trainDay: trainDay, fromStationCode: donggguanxi, toStationCode: changpingdong},  // [东莞西、常平东]
