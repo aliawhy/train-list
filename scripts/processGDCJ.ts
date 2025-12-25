@@ -94,6 +94,15 @@ export function getQueryStationPairs(trainDay: string) {
 
 
 /**
+ * 强制采集范围天数配置
+ * 默认为 -1：使用智能策略（4天滚动 + 周末查漏补缺）
+ * 设置为 > 0 的整数（如 7）：强制采集未来 N 天（用于应对临时调图/全量覆盖）
+ *
+ * 注意：修改此值后需重启服务或热更新配置生效
+ */
+const FORCE_QUERY_RANGE_DAYS = 5;
+
+/**
  * 说明：
  * 广东城际区分周内图和周末图
  * 用户可以明确购买车票是：
@@ -102,9 +111,23 @@ export function getQueryStationPairs(trainDay: string) {
  * 因此：
  * 取最近4天的数据，如果最近4天不含周末，再追加一个周六的数据
  */
+const assistant_for_tiaotu_query_days = -1 // 如果是非负数，如7，表示生成日期直接从今天开始一共查7天
 function getQueryDays() {
     const today = getBeiJingDateStr()
     const targetDays = []
+
+
+    // [模式一] 强制指定天数模式
+    // 场景：应对临时调图或需要全量数据刷新时
+    if (FORCE_QUERY_RANGE_DAYS > 0) {
+        for (let i = 0; i < FORCE_QUERY_RANGE_DAYS; i++) {
+            targetDays.push(getBeiJingDateStr(i, today));
+        }
+        console.log(`[强制模式] 采集未来 ${FORCE_QUERY_RANGE_DAYS} 天数据:`, targetDays.join("、"));
+        return targetDays;
+    }
+
+    // [模式二] 默认智能策略模式
     // 检查4天内是否包含周末
     let hasWeekend = false;
     for (let i = 0; i < 4; i++) {
