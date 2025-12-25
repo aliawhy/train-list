@@ -25,10 +25,10 @@ export class HistoryResultUtil {
      * 紧急刷新 但不想更新、丢失某日期时，在这里填写保护日期
      */
     public static readonly PROTECTED_HISTORY_DATES: string[] = [
-        '2025-12-25',
-        '2025-12-26',
-        '2025-12-27',
-        '2025-12-28',
+        // '2025-12-25',
+        // '2025-12-26',
+        // '2025-12-27',
+        // '2025-12-28',
         // 注： 也请检查临时日期参数 FORCE_QUERY_RANGE_DAYS的值是否是特殊值
     ];
 

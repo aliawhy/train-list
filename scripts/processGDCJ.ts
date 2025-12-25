@@ -18,59 +18,100 @@ const __dirname = path.dirname(__filename);
  * @param trainDay
  */
 export function getQueryStationPairs(trainDay: string) {
-    const zhaoqing = 'ZQA'; // 固定值 肇庆
-    const foshanxi = 'FXA'; // 固定值 佛山西
-    const panyu = 'PYA'; // 固定值 番禺
-    const guangzhoulianhuashan = 'GLA'; // 固定值 广州莲花山
-    const xiaojinkou = 'NKQ'; // 固定值 小金口
-    const donggguanxi = 'DXA'; // 固定值 东莞西，后续可能会用到
-    const xipingxi = 'EGQ'; // 固定值 西平西，后续可能会用
-    const huadu = 'HAA'; // 花都
-    const qingcheng = 'QCA'; // 清城
-    const baiyunjichangbei = 'BBA'; // 白云机场北
-    const xintangnan = 'NUQ'; // 新塘南
-    const shenzhenjichang = 'SCA'; // 深圳机场
-    const changpingdong = 'FQQ'; // 常平东
-    const chenjiangnan = 'KKQ'; // 陈江南
+    const 肇庆 = 'ZQA'; // 固定值 肇庆
+    const 佛山西 = 'FXA'; // 固定值 佛山西
+    const 番禺 = 'PYA'; // 固定值 番禺
+    const 广州莲花山 = 'GLA'; // 固定值 广州莲花山
+    const 小金口 = 'NKQ'; // 固定值 小金口
+    const 东莞西 = 'DXA'; // 固定值 东莞西，后续可能会用到
+    const 西平西 = 'EGQ'; // 固定值 西平西，后续可能会用
+    const 花都 = 'HAA'; // 花都
+    const 清城 = 'QCA'; // 清城
+    const 白云机场北 = 'BBA'; // 白云机场北
+    const 新塘南 = 'NUQ'; // 新塘南
+    const 深圳机场 = 'SCA'; // 深圳机场
+    const 常平东 = 'FQQ'; // 常平东
+    const 陈江南 = 'KKQ'; // 陈江南
 
-    const feixia = 'FEA'; // 飞霞
-    const pazhou = 'PTQ'; // 琶洲
-    const huizhoubei = 'KBA'; // 惠州北
+    const 飞霞 = 'FEA'; // 飞霞
+    const 琶洲 = 'PTQ'; // 琶洲
+    const 惠州北 = 'KBA'; // 惠州北
 
     // 构造所有站点对的数组
     const stationPairs = [
-        {trainDay: trainDay, fromStationCode: zhaoqing, toStationCode: foshanxi},    // [肇庆、佛山西]
-        {trainDay: trainDay, fromStationCode: foshanxi, toStationCode: panyu},    // [佛山西、番禺]
-        {trainDay: trainDay, fromStationCode: panyu, toStationCode: guangzhoulianhuashan},  // [番禺、广州莲花山]
-        {trainDay: trainDay, fromStationCode: panyu, toStationCode: donggguanxi},  // [番禺、东莞西]
-        {trainDay: trainDay, fromStationCode: guangzhoulianhuashan, toStationCode: xiaojinkou},  // [广州莲花山、小金口]
-        {trainDay: trainDay, fromStationCode: qingcheng, toStationCode: huadu},     // [清城、花都]
-        {trainDay: trainDay, fromStationCode: huadu, toStationCode: baiyunjichangbei},  // [花都、白云机场北]
-        {trainDay: trainDay, fromStationCode: xintangnan, toStationCode: shenzhenjichang},  // [新塘南、深圳机场]
+        // // 广清
+        // {trainDay: trainDay, fromStationCode: 花都, toStationCode: 清城},
+        //
+        //
+        // // 广州东环
+        // {trainDay: trainDay, fromStationCode: 花都, toStationCode: 白云机场北},
+        // {trainDay: trainDay, fromStationCode: 花都, toStationCode: 竹料},
+        // {trainDay: trainDay, fromStationCode: 花都, toStationCode: 琶洲},
+        // {trainDay: trainDay, fromStationCode: 花都, toStationCode: 番禺},
+        // {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 琶洲},
+        // {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 竹料},
+        // {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 白云机场北},
+        // {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 花都},
+        //
+        // // 琶莲
+        // {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 广州莲花山},
+        // {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 东莞西},
+        // {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 西平西},
+        // {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 常平东},
+        //
+        //
+        // // 广肇
+        // {trainDay: trainDay, fromStationCode: 肇庆, toStationCode: 佛山西},
+        // {trainDay: trainDay, fromStationCode: 佛山西, toStationCode: 番禺},
+        //
+        // // 广惠
+        // {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 广州长隆},
+        // {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 广州莲花山},
+        // {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 东莞西},
+        // {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 西平西},
+        // {trainDay: trainDay, fromStationCode: 广州莲花山, toStationCode: 西平西},
+        // {trainDay: trainDay, fromStationCode: 东莞西, toStationCode: 西平西},
+        // {trainDay: trainDay, fromStationCode: 西平西, toStationCode: 常平东},
+        // {trainDay: trainDay, fromStationCode: 西平西, toStationCode: 陈江南},
+        // {trainDay: trainDay, fromStationCode: 西平西, toStationCode: 云山},
+        // {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 惠州北},
+        //
+        // // 穗深
+        // {trainDay: trainDay, fromStationCode: 新塘南, toStationCode: 深圳机场},
 
-        {trainDay: trainDay, fromStationCode: panyu, toStationCode: huizhoubei},  // [番禺、惠州北]
-        {trainDay: trainDay, fromStationCode: panyu, toStationCode: huizhoubei},  // [番禺、佛山西]
 
-        {trainDay: trainDay, fromStationCode: huadu, toStationCode: pazhou},  // [花都、琶洲]
-        {trainDay: trainDay, fromStationCode: huadu, toStationCode: panyu},  // [花都、番禺]
-        {trainDay: trainDay, fromStationCode: huadu, toStationCode: foshanxi},  // [花都、佛山西]
-        {trainDay: trainDay, fromStationCode: huadu, toStationCode: zhaoqing},  // [花都、肇庆]
-        {trainDay: trainDay, fromStationCode: huadu, toStationCode: donggguanxi},  // [花都、东莞西]
-        {trainDay: trainDay, fromStationCode: huadu, toStationCode: huizhoubei},  // [花都、惠州北]
-        {trainDay: trainDay, fromStationCode: huadu, toStationCode: xiaojinkou},  // [花都、小金口]
+        {trainDay: trainDay, fromStationCode: 肇庆, toStationCode: 佛山西},    // [肇庆、佛山西]
+        {trainDay: trainDay, fromStationCode: 佛山西, toStationCode: 番禺},    // [佛山西、番禺]
+        {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 广州莲花山},  // [番禺、广州莲花山]
+        {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 东莞西},  // [番禺、东莞西]
+        {trainDay: trainDay, fromStationCode: 广州莲花山, toStationCode: 小金口},  // [广州莲花山、小金口]
+        {trainDay: trainDay, fromStationCode: 清城, toStationCode: 花都},     // [清城、花都]
+        {trainDay: trainDay, fromStationCode: 花都, toStationCode: 白云机场北},  // [花都、白云机场北]
+        {trainDay: trainDay, fromStationCode: 新塘南, toStationCode: 深圳机场},  // [新塘南、深圳机场]
 
-        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: panyu},  // [琶洲、番禺]
-        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: foshanxi},  // [琶洲、佛山西]
-        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: baiyunjichangbei},  // [琶洲、白云机场北]
-        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: zhaoqing},  // [琶洲、肇庆]
-        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: guangzhoulianhuashan},  // [琶洲、广州莲花山]
-        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: donggguanxi},  // [琶洲、东莞西]
-        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: huizhoubei},  // [琶洲、惠州北]
-        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: xiaojinkou},  // [琶洲、小金口]
-        {trainDay: trainDay, fromStationCode: pazhou, toStationCode: feixia},  // [琶洲、飞霞]
+        {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 惠州北},  // [番禺、惠州北]
+        {trainDay: trainDay, fromStationCode: 番禺, toStationCode: 惠州北},  // [番禺、佛山西]
 
-        {trainDay: trainDay, fromStationCode: donggguanxi, toStationCode: changpingdong},  // [东莞西、常平东]
-        {trainDay: trainDay, fromStationCode: changpingdong, toStationCode: chenjiangnan},  // [常平东、陈江南]
+        {trainDay: trainDay, fromStationCode: 花都, toStationCode: 琶洲},  // [花都、琶洲]
+        {trainDay: trainDay, fromStationCode: 花都, toStationCode: 番禺},  // [花都、番禺]
+        {trainDay: trainDay, fromStationCode: 花都, toStationCode: 佛山西},  // [花都、佛山西]
+        {trainDay: trainDay, fromStationCode: 花都, toStationCode: 肇庆},  // [花都、肇庆]
+        {trainDay: trainDay, fromStationCode: 花都, toStationCode: 东莞西},  // [花都、东莞西]
+        {trainDay: trainDay, fromStationCode: 花都, toStationCode: 惠州北},  // [花都、惠州北]
+        {trainDay: trainDay, fromStationCode: 花都, toStationCode: 小金口},  // [花都、小金口]
+
+        {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 番禺},  // [琶洲、番禺]
+        {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 佛山西},  // [琶洲、佛山西]
+        {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 白云机场北},  // [琶洲、白云机场北]
+        {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 肇庆},  // [琶洲、肇庆]
+        {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 广州莲花山},  // [琶洲、广州莲花山]
+        {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 东莞西},  // [琶洲、东莞西]
+        {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 惠州北},  // [琶洲、惠州北]
+        {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 小金口},  // [琶洲、小金口]
+        {trainDay: trainDay, fromStationCode: 琶洲, toStationCode: 飞霞},  // [琶洲、飞霞]
+
+        {trainDay: trainDay, fromStationCode: 东莞西, toStationCode: 常平东},  // [东莞西、常平东]
+        {trainDay: trainDay, fromStationCode: 常平东, toStationCode: 陈江南},  // [常平东、陈江南]
     ];
 
     // 自动增加反向
@@ -101,7 +142,7 @@ export function getQueryStationPairs(trainDay: string) {
  * 注意：修改此值后需重启服务或热更新配置生效
  */
 
-const FORCE_QUERY_RANGE_DAYS = 5; // 注： 也请检查 保存指定日期的值 PROTECTED_HISTORY_DATES 是否是特殊值
+const FORCE_QUERY_RANGE_DAYS = 4; // 注： 也请检查 保存指定日期的值 PROTECTED_HISTORY_DATES 是否是特殊值
 
 /**
  * 说明：
