@@ -100,7 +100,8 @@ export function getQueryStationPairs(trainDay: string) {
  *
  * 注意：修改此值后需重启服务或热更新配置生效
  */
-const FORCE_QUERY_RANGE_DAYS = 5;
+
+const FORCE_QUERY_RANGE_DAYS = 5; // 注： 也请检查 保存指定日期的值PROTECTED_HISTORY_DATES 是否是特殊值
 
 /**
  * 说明：

@@ -26,6 +26,7 @@ export class HistoryResultUtil {
      */
     public static readonly PROTECTED_HISTORY_DATES: string[] = [
         '2025-12-25'
+        // 注： 也请检查临时日期参数 FORCE_QUERY_RANGE_DAYS的值是否是特殊值
     ];
 
     /**
