@@ -101,7 +101,7 @@ export function getQueryStationPairs(trainDay: string) {
  * 注意：修改此值后需重启服务或热更新配置生效
  */
 
-const FORCE_QUERY_RANGE_DAYS = 5; // 注： 也请检查 保存指定日期的值PROTECTED_HISTORY_DATES 是否是特殊值
+const FORCE_QUERY_RANGE_DAYS = 5; // 注： 也请检查 保存指定日期的值 PROTECTED_HISTORY_DATES 是否是特殊值
 
 /**
  * 说明：
@@ -112,7 +112,6 @@ const FORCE_QUERY_RANGE_DAYS = 5; // 注： 也请检查 保存指定日期的�
  * 因此：
  * 取最近4天的数据，如果最近4天不含周末，再追加一个周六的数据
  */
-const assistant_for_tiaotu_query_days = -1 // 如果是非负数，如7，表示生成日期直接从今天开始一共查7天
 function getQueryDays() {
     const today = getBeiJingDateStr()
     const targetDays = []
@@ -175,8 +174,22 @@ async function getTrainDetailsForQueryDays() {
         console.log(`开始更新日期 ${trainDay} 的数据`);
 
         if (HistoryResultUtil.isProtectedDateFromHistory(trainDay)) {
-            console.log(`日期 ${trainDay} 使用历史数据，不需要更新，跳过`);
-            continue
+            console.log(`日期 ${trainDay} 在保护列表中，尝试加载历史数据...`);
+
+            const historyDetails = HistoryResultUtil.getHistoryTrainDetails(trainDay);
+
+            // 关键判断：只有不是 undefined 时才认为是有效历史数据
+            if (historyDetails !== undefined) {
+                finalTrainDetailMap[trainDay] = historyDetails; // 这里可能是 []，这没问题
+                console.log(`增加日期 ${trainDay} 数据到记录. 【使用缓存】`);
+
+            } else {
+                // 打一个warn日志即可。当天没缓存是正常的，因为滚动查询时， 并非所有天都查。
+                // 这时候 这种天如果要保护 等价于不填任何内容（让消费端自己去匹配最近的一天）
+                console.warn(`日期 ${trainDay} 被配置为保护日期，但历史文件中缺失该数据，将跳过写入。`);
+            }
+
+            continue;
         }
 
         try {

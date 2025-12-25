@@ -169,7 +169,7 @@ export class HistoryResultUtil {
 
             // 4. 构建内部查询索引
             this.buildInternalIndex();
-            console.log(`${logTime()} [HistoryResultUtil] 初始化完成，共加载 ${Object.keys(this.oldResult).join(",")} 的数据。`, );
+            console.log(`${logTime()} [HistoryResultUtil] 初始化完成，共加载 ${Object.keys(this.oldResult).join(",")} 的数据。`,);
             this.isInitialized = true;
 
         } catch (error) {
@@ -270,6 +270,32 @@ export class HistoryResultUtil {
             console.debug(`${logTime()} [HistoryResultUtil] 在日期${normalizedDate} 的数据中未找到车次 ${trainCode}。`);
         }
         return detail;
+    }
+
+    /**
+     * 获取指定日期的完整列车详情列表（原始数据）
+     *
+     * @param date 日期字符串
+     * @returns
+     * - TrainDetail[]: 如果历史记录中有这一天（包括空数组 []，表示当天无车）
+     * - undefined: 如果历史记录中完全不存在这一天的 key（表示从未保存过该日期数据）
+     */
+    public static getHistoryTrainDetails(date: string): TrainDetail[] | undefined {
+        const normalizedDate = this.normalizeDateFormat(date);
+        this.ensureInitialized();
+
+        // 精确判断 key 是否存在于 oldResult 中
+        const hasKey = Object.prototype.hasOwnProperty.call(this.oldResult, normalizedDate);
+
+        if (hasKey) {
+            const details = this.oldResult[normalizedDate];
+            const count = Array.isArray(details) ? details.length : 0;
+            console.log(`${logTime()} [HistoryResultUtil] 成功加载历史记录${normalizedDate}，共 ${count} 条数据。`);
+            return details; // 可能是数组，也可能是 []
+        } else {
+            console.warn(`${logTime()} [HistoryResultUtil] 警告：日期${normalizedDate} 在历史记录中完全不存在 (undefined)。`);
+            return undefined;
+        }
     }
 
     public static isProtectedDateFromHistory(date: string): boolean {
